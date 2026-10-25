@@ -25,7 +25,7 @@ export async function buildServer(db:Database){
  const origin=req.headers.origin;D.ensure(origin===(process.env.APP_ORIGIN||'http://localhost:3000'),'Request origin is not allowed',403);
  }});
  app.setErrorHandler((error,_req,reply)=>{const e=error as any;reply.code(e instanceof z.ZodError?400:e.statusCode||500).send({error:e instanceof z.ZodError?'Invalid input':e.statusCode?e.message:'The request could not be completed'});if(!e.statusCode&&!(e instanceof z.ZodError))app.log.error(e);});
- async function user(req:any){const token=req.cookies.session;D.ensure(token,'Sign in to continue',401);const u=await D.one(db,'SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()',[D.hash(token)]);return u;}
+ async function user(req:any){const token=req.cookies.session;D.ensure(token,'Sign in to continue',401);const [u]=await db.q('SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()',[D.hash(token)]);D.ensure(u,'Sign in to continue',401);return u;}
  async function session(reply:any,u:any){const token=D.uid()+D.uid();await db.q("INSERT INTO sessions VALUES($1,$2,now()+interval '7 days')",[D.hash(token),u.id]);reply.setCookie('session',token,{httpOnly:true,secure:production,sameSite:'strict',path:'/',maxAge:604800});return {user:u};}
  app.get('/v1/health',async()=>{await db.q('SELECT 1');return {ok:true,database:process.env.DATABASE_URL?'postgresql':'pglite-development',paymentMode:mode,devAuth:dev};});
  app.get('/v1/campuses',async()=>db.q('SELECT * FROM campuses ORDER BY id'));
@@ -60,7 +60,7 @@ export async function buildServer(db:Database){
  app.post('/v1/payments/simulate',async req=>{D.ensure(dev&&mode==='simulator','Local simulator disabled',404);const u=await user(req);const {id}=z.object({id:z.string()}).parse(req.body);const o=await D.one(db,'SELECT b.*,o.user_id FROM obligations b JOIN orders o ON o.id=b.order_id WHERE b.id=$1',[id]);D.ensure(o.user_id===u.id,'Not your payment',403);D.ensure(new Date(o.expires_at).getTime()>Date.now(),'Payment attempt expired');return D.capture(db,'sim-'+o.id,'sim-payment-'+o.id,o.id,o.amount);});
  app.post('/v1/payments/webhook',async req=>{
  D.ensure(gateway&&process.env.RAZORPAY_WEBHOOK_SECRET,'Gateway webhook is not configured',503);
- const actual=String(req.headers['x-razorpay-signature']||'');const expected=createHmac('sha256',process.env.RAZORPAY_WEBHOOK_SECRET!).update((req as any).rawBody||'').digest('hex');D.ensure(actual.length===expected.length&&timingSafeEqual(Buffer.from(actual),Buffer.from(expected)),'Invalid webhook signature',401);
+ const actual=String(req.headers['x-razorpay-signature']||'');const expected=createHmac('sha256',process.env.RAZORPAY_WEBHOOK_SECRET!).update((req as any).rawBody||'').digest('hex');D.ensure(/^[a-f0-9]{64}$/i.test(actual)&&timingSafeEqual(Buffer.from(actual,'hex'),Buffer.from(expected,'hex')),'Invalid webhook signature',401);
  const b=req.body as any;if(b.event!=='payment.captured')return {ignored:true};const p=b.payload.payment.entity;D.ensure(p.currency==='INR'&&p.status==='captured','Unexpected payment currency/status',400);const ob=await D.one(db,'SELECT * FROM obligations WHERE provider_order_id=$1',[p.order_id]);return D.capture(db,String(req.headers['x-razorpay-event-id']||p.id),p.id,ob.id,p.amount);
  });
  app.post('/v1/drops/:id/approve',async req=>D.approve(db,(await user(req)).id,(req.params as any).id));

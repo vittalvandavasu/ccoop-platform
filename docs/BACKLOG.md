@@ -9,3 +9,6 @@
 - P1 Release: physical campus rehearsal, approved catalog photography, legal/tax policy, staging provider E2E and production approval.
 
 Completion is recorded in README; a listed issue is not a claim of implementation.
+
+## Next verification priority (25 October audit)
+Run the serialized domain/API suite and additional payment/approval races against a dedicated native PostgreSQL database, and start Redis/BullMQ on a Docker-capable host. See AUDIT.md for unresolved findings. Prompt 2 remains the next implementation scope after review.

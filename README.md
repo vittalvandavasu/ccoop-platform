@@ -12,7 +12,7 @@ A private, production-oriented foundation, **not a release-ready complete MVP**.
 - In-app notification outbox, audit trail, tenant authorization, origin checking, secure production cookie flags, development OTP challenge/verify with expiry/attempt limits, Google ID-token verification endpoint.
 - Redis/BullMQ worker skeleton reports pending notifications; it does **not** deliver email/SMS or mark deliveries successful.
 - PWA manifest, icon and offline navigation shell. No financial/identity responses cached.
-- Docker Compose PostgreSQL 17/Redis 7; GitHub Actions definition; 16 verified domain/API tests; Playwright browser test authored but not run here.
+- Docker Compose PostgreSQL 17/Redis 7; GitHub Actions definition; 18 independently verified domain/API tests; full four-role Playwright rehearsal (see docs/STATUS.md).
 
 ## Run with PostgreSQL (canonical environment)
 Node 22+ and Docker Compose are required.
@@ -58,20 +58,16 @@ npm test
 npm run build
 # Dedicated disposable PostgreSQL database only, name must include test:
 DATABASE_URL=postgres://ccoop:ccoop@localhost:5432/ccoop_test npm test
-# On a supported local browser runtime with the app running:
+# Install Chromium once; browser tests start their own API/frontend and isolated database:
+npx playwright install chromium
 npm run test:e2e
 ```
-Tests truncate their isolated test database. Never point them at business data. CI uses `ccoop_test`. Run browser tests on a fresh seeded database; the existing sample browser test exercises pledge persistence and 390px layout, not the full multi-role flow.
+Tests truncate their isolated test database. Never point them at business data. CI uses `ccoop_test`. Browser tests create a fresh `.data/browser-test-*` database on each run and refuse to reuse servers on ports 3000/4000. Stop development servers before running. Screenshots are saved to `artifacts/`. Domain/API test files run serially to prevent truncation races on native PostgreSQL.
 
-## Verified in this workspace
-- 16 domain/API tests pass against PGlite's PostgreSQL engine.
-- TypeScript strict check passes.
-- Next production build passes.
-- Production dependency audit: no known vulnerabilities returned.
-- Browser/mobile QA and screenshots **not completed**: the managed preview's Node runtime fails with `ENOENT uv_resident_set_memory`; no browser test success is claimed.
-- Native PostgreSQL multi-connection CI, Redis worker runtime, Google provider sign-in, actual Razorpay sandbox and S3 remain unverified.
+## Independent verification
+See [docs/STATUS.md](docs/STATUS.md) for executed checks and [docs/AUDIT.md](docs/AUDIT.md) for findings. Original 16 tests plus 2 API regressions pass; strict type checking and the production build pass. Native PostgreSQL/Redis and real provider integrations remain unverified.
 
 ## Remaining scope / release blockers
 Campus Store reservations/expiry/checkout and operating windows; actual product/drop authoring; failed-color self-service switching and cancellations; partial item pickup; camera scanner; phone OTP and real email/SMS delivery; Google sign-in UI; S3 uploads; refunds and adjustment approval; role administration; shipping state detail; external notifications; PWA install/device testing; approved photos/content and operational rehearsal. See `docs/BACKLOG.md`.
 
-Git is initialized and committed locally. GitHub returned no accessible repositories and offers no repository-creation tool in this session; no remote push or hosted CI run has occurred. Provide a private repository connection to synchronize this exact source. No public deployment or real payment has been attempted.
+The supplied Git bundle history was restored locally on `codex/verify-slice-01`. No remote is configured, so no remote push or hosted CI run has occurred. No public deployment or real payment has been attempted.
