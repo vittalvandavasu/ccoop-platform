@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ccoop
+      POSTGRES_USER: ccoop
+      POSTGRES_PASSWORD: ccoop
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ccoop"]
+      interval: 3s
+      retries: 15
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: ["redis:/data"]
+volumes:
+  postgres:
+  redis:

@@ -1,0 +1,1 @@
+{"name": "@ccoop/api", "private": true, "type": "module", "scripts": {"dev": "tsx src/server.ts"}}
