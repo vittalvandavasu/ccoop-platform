@@ -1,4 +1,16 @@
-# Cashfree / native verification status — 26 October 2026
+# Campaign management status — 26 October 2026
+
+Prompt 2 is implemented on `codex/campaign-management`, based on PR #1's verified `4faf62e9765f7a0c47da53b845d45c04109ac7cb`. The feature PR targets `codex/cashfree-postgres-verification` while PR #1 remains unmerged. Neither PR is to be merged automatically.
+
+Implemented: persisted curator draft editor and schedules; campus authorization/private drafts; immutable published terms; genuine SKU/color demand; deterministic failed/qualifying closure; audited extensions; student quantity/SKU edits and cancellation; reviewed failed-color switches; resolution/payment expiry; order eligibility/price snapshots; transactional inbox and BullMQ deadline recovery. The chosen category rule and reconciliation policy are documented in CAMPAIGNS.md.
+
+Verification includes 51 fixture cases, 15 native PostgreSQL/Redis cases, strict type checks, production build and three Chromium journeys. Final executed results and the exact commit/run links are recorded in the feature PR. Native services are exercised in hosted CI; local PGlite evidence is not native concurrency evidence. Screenshots: `artifacts/campaign-editor-desktop.png`, `campaign-editor-390.png`, `campaign-color-review-390.png`, and `campaign-results-desktop.png`, retained in the hosted browser-evidence artifact with the existing commerce screenshots.
+
+Local executed evidence: 50 domain/API/provider/campaign fixtures passed; the file-backed migration fixture timed out during a concurrent build, then passed alone in 14.9 seconds (51 cases verified). Strict type checks and the production build passed. All three Chromium journeys passed in 4.8 minutes. Browser tests honor server rate-limit resets between rapid role journeys; no application limit is bypassed.
+
+Actual Cashfree sandbox transactions remain **unverified** and required before payment release. No real gateway calls are used in fixtures/CI. External email/SMS, media upload, refund execution, Campus Store, public deployment and live payments remain outside this milestone. Recommended next implementation: audited payment-exception resolution and fulfillment discrepancy handling; actual provider rehearsal proceeds separately with protected credentials.
+
+## Historical PR #1 evidence
 
 Baseline preserved: 39590783e929e65e21ec292858f668dc602f3756. Branch: codex/cashfree-postgres-verification. Scope excludes Campus Store, unrelated campaign management, live payments and public deployment.
 

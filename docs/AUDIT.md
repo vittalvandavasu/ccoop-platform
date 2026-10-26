@@ -1,6 +1,18 @@
 # Audit — Cashfree / native verification, 26 October 2026
 
-Baseline 3959078 retained; current branch implements the requested Cashfree and hosted infrastructure milestone only. Original session, malformed Razorpay signature, identity-state and test isolation fixes remain.
+## Prompt 2 campaign-management review
+
+- Migration 004 adds scheduling, revisions, original pledge-request payloads, immutable order snapshots and persisted mutation responses. It preserves existing money, provider mappings, obligations and orders. Legacy order snapshots are explicitly identified.
+- Curator drafts are absent from public catalog routes. Server-side authorization scopes curator/admin actions to their campus. Published/scheduled commercial edits are rejected; only draft catalog revisions and audited active-phase deadline extensions are allowed.
+- Campaign-first locking serializes edits/cancellation, close, switches/expiry, conversion, payment expiry and verification. Creation request payloads survive later pledge edits, so replay does not create another pledge. Close, publication, extensions and pledge decisions have durable replay protection.
+- Resolution is explicit and price-reviewed. Category MOQ counts eligible-color units; size variants have no independent MOQ. Failed campaigns and expired/canceled free pledges create no refund or credit entitlement. Paid-demand production approval remains separate.
+- Expiry never deletes orders or gateway attempts. Timely late verification is permitted while PAYMENT_CLOSED; existing late-payment holds and production exclusion remain. Simulator isolation tests and provider fixtures remain in the default suite.
+- Worker recovery handles all overdue phases and writes audit/outbox records transactionally. The real Redis worker test verifies scheduled publication and replay; native race tests deliberately overlap connections. Inbox persistence is implemented, external delivery is not.
+- Browser journeys cover draft edit/publication/scheduling, pledge edits, explicit color review/conversion, keyboard operation, campus denial, and 390px layouts alongside the original commerce/privacy journeys. Screenshots are retained in the CI browser-evidence artifact. Consult STATUS and the stacked PR for executed results.
+
+Remaining campaign-adjacent gaps: media upload, catalog import, campaign cloning, bulk tools and external delivery. Actual Cashfree sandbox transactions remain unverified and block payment release, not campaign development. Campus Store, public deployment and live payments are excluded.
+
+Historical PR #1 audit follows. Baseline 3959078 and its Cashfree/hosted infrastructure work are retained. Original session, malformed Razorpay signature, identity-state and test isolation fixes remain.
 
 ## Changes reviewed
 
@@ -20,7 +32,7 @@ Actual Cashfree credentials, allowed checkout domain and provider-reachable call
 
 Payment holds require manual operations/refund review; this milestone does not implement provider refund execution or a hold-resolution workflow. Ambiguous legacy obligations must be reconciled manually. Legacy Razorpay remote timeout recovery is unchanged.
 
-Campaign failure/cancellation/expiry management, Campus Store reservations, quarantine disposition, partial pickup, real OTP/external notifications, Google sign-in UI, S3 and device/PWA testing remain backlog items. No public deployment or production readiness claim is made.
+Campaign failure/cancellation/expiry management is implemented in Prompt 2 above. Campus Store reservations, quarantine disposition, partial pickup, real OTP/external notifications, Google sign-in UI, S3 and device/PWA testing remain backlog items. No public deployment or production readiness claim is made.
 
 See STATUS.md for executed evidence and the final hosted run. The PR is for review only and must not be merged automatically.
 

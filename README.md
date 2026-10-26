@@ -1,6 +1,16 @@
-# CCOOP.IN — Cashfree sandbox and native verification
+# CCOOP.IN — Campaign management and sandbox commerce
 
 Private campus collective commerce implementation. Next.js/React/TypeScript/Tailwind frontend, Fastify API, Drizzle/PostgreSQL persistence and Redis/BullMQ worker. Editorial design retained. This is not a complete MVP or a live-payment release.
+
+## Campaign management (Prompt 2)
+
+Curator → Operations → Create draft opens the persisted editor: title/description, integer-paise price, existing media, category MOQ, color/size SKUs with shared color MOQ, and publication/pledge/resolution/payment dates. Draft edits require a reason; publish immediately or schedule publication. Drafts and schedules are absent from public catalog responses. Published commercial details are immutable. The campus desk displays database quantities across sizes, evaluated thresholds and eligible colors. Curators can close early with an audited reason or extend an active deadline without reopening a completed phase. Admin/curator permissions are campus-scoped.
+
+Students use My activity to edit quantities/SKUs or cancel before lock. The aggregate limit is 10 units per student/drop. Failed-color pledges require an explicit switch to an eligible color or cancellation; the confirmation shows SKU, quantity, unit price and total, with ₹0 due. Winning pledges wait until resolution completes. Category MOQ counts eligible-color units at final evaluation; unresolved choices expire and unsuccessful campaigns fail without creating refund/credit entitlements. Conversion snapshots commercial terms; catalog changes never reprice orders or gateway obligations.
+
+Run `npm run worker` with PostgreSQL/Redis for automatic publication, close, resolution expiry and payment expiry. The recurring BullMQ recovery job checks persisted deadlines every 10 seconds and catches up after downtime; no job needs to have survived in Redis to recover a due campaign. Repeated jobs are safe. Payment expiry retains paid orders and outstanding provider attempts, and timely late verification can still credit before production. Production remains a separate paid-demand gate. Notifications commit to the in-app inbox/outbox; no external email/SMS delivery is claimed. In PGlite-only development, curator actions work but timed transitions require the native worker environment.
+
+The full transition policy and resolution of earlier spec ambiguities are in [CAMPAIGNS](docs/CAMPAIGNS.md). Media selection currently uses bundled product illustrations or the existing hoodie image; uploads/S3 are outside this milestone.
 
 ## Setup
 
