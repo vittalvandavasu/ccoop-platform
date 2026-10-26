@@ -1,38 +1,34 @@
 import { randomUUID, createHash } from 'node:crypto';
+import {closeCampaign} from './campaigns.js';
 import type {Database,Query} from '../../../packages/db/index.js';
 export const uid=()=>randomUUID();
 export const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 export class Problem extends Error {constructor(public statusCode:number,message:string){super(message)}}
 export function ensure(ok:unknown,message:string,code=409):asserts ok {if(!ok)throw new Problem(code,message)}
 export async function one(q:Query,s:string,v:unknown[]=[]){const [row]=await q.q(s,v);ensure(row,'Record not found',404);return row;}
-export async function role(q:Query,user:string,campus:string,roles:string[]){const r=await q.q("SELECT * FROM roles WHERE user_id=$1 AND (role='admin' OR (campus_id=$2 AND role=ANY($3::text[])))",[user,campus,roles]);ensure(r.length,'This campus operation is not permitted',403)}
+export async function role(q:Query,user:string,campus:string,roles:string[]){const r=await q.q("SELECT * FROM roles WHERE user_id=$1 AND campus_id=$2 AND (role='admin' OR role=ANY($3::text[]))",[user,campus,roles]);ensure(r.length,'This campus operation is not permitted',403)}
 export async function audit(q:Query,user:string,campus:string,action:string,entity:string,detail:unknown={}){await q.q('INSERT INTO audit(id,campus_id,actor,action,entity,detail) VALUES($1,$2,$3,$4,$5,$6)',[uid(),campus,user,action,entity,JSON.stringify(detail)]);}
 export async function notify(q:Query,user:string,message:string){await q.q('INSERT INTO outbox(id,user_id,message) VALUES($1,$2,$3)',[uid(),user,message]);}
 export async function pledge(db:Database,user:string,dropId:string,variantId:string,quantity:number,key:string){return db.tx(async q=>{
  const d=await one(q,'SELECT * FROM drops WHERE id=$1 FOR UPDATE',[dropId]);
- const old=await q.q('SELECT * FROM pledges WHERE user_id=$1 AND request_key=$2',[user,key]);if(old.length){ensure(old[0].drop_id===dropId&&old[0].variant_id===variantId&&old[0].quantity===quantity,'Idempotency key reused with different pledge');return old[0];}
+ const old=await q.q('SELECT * FROM pledges WHERE user_id=$1 AND request_key=$2',[user,key]);if(old.length){const original=old[0].original_request||{variantId:old[0].variant_id,quantity:old[0].quantity};ensure(old[0].drop_id===dropId&&original.variantId===variantId&&original.quantity===quantity,'Idempotency key reused with different pledge');return old[0];}
  ensure(d.state==='PLEDGING'&&new Date(d.closes_at).getTime()>Date.now(),'This pledge window is closed');
  ensure(Number.isInteger(quantity)&&quantity>=1&&quantity<=10,'Choose 1–10 units',400);
  await one(q,'SELECT id FROM variants WHERE id=$1 AND drop_id=$2',[variantId,dropId]);
  const [total]=await q.q("SELECT COALESCE(SUM(quantity),0)::int AS n FROM pledges WHERE user_id=$1 AND drop_id=$2 AND status<>'CANCELED'",[user,dropId]);ensure(total.n+quantity<=10,'Maximum 10 units per person per drop');
- return one(q,'INSERT INTO pledges(id,user_id,drop_id,variant_id,quantity,request_key) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[uid(),user,dropId,variantId,quantity,key]);
+ const p=await one(q,'INSERT INTO pledges(id,user_id,drop_id,variant_id,quantity,request_key,original_request) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',[uid(),user,dropId,variantId,quantity,key,JSON.stringify({variantId,quantity})]);await notify(q,user,'Free pledge saved. You can edit or cancel before campaign lock. No money is due.');return p;
  });}
-export async function lockDrop(db:Database,user:string,id:string){return db.tx(async q=>{
- const d=await one(q,'SELECT * FROM drops WHERE id=$1 FOR UPDATE',[id]);await role(q,user,d.campus_id,['curator']);ensure(d.state==='PLEDGING','Campaign already evaluated');
- const counts=await q.q("SELECT v.color,MAX(v.color_moq)::int moq,COALESCE(SUM(p.quantity),0)::int units FROM variants v LEFT JOIN pledges p ON p.variant_id=v.id AND p.status='ACTIVE' WHERE v.drop_id=$1 GROUP BY v.color",[id]);
- const total=counts.reduce((a,c)=>a+c.units,0);const winning=counts.filter(c=>c.units>=c.moq).map(c=>c.color);ensure(total>=d.moq&&winning.length,'Pledged demand does not meet MOQ');
- await q.q("UPDATE drops SET state='PAYMENT_OPEN',closes_at=LEAST(closes_at,now()),payment_ends_at=now()+interval '7 days',snapshot=$2 WHERE id=$1",[id,JSON.stringify({total,colors:counts,winning,lockedBy:user,lockedAt:new Date()})]);
- await q.q("UPDATE pledges p SET status=CASE WHEN v.color=ANY($2::text[]) THEN 'ELIGIBLE' ELSE 'SWITCH_REQUIRED' END FROM variants v WHERE p.variant_id=v.id AND p.drop_id=$1 AND p.status='ACTIVE'",[id,winning]);
- const ps=await q.q('SELECT * FROM pledges WHERE drop_id=$1',[id]);for(const p of ps)await notify(q,p.user_id,p.status==='ELIGIBLE'?"It's happening. Confirm your order.":'Your colour needs a switch before payment.');
- await audit(q,user,d.campus_id,'CAMPAIGN_LOCKED',id,{total,counts});return {total,winning};
- });}
+export const lockDrop=closeCampaign;
 export async function createOrder(db:Database,user:string,pledgeId:string){return db.tx(async q=>{
  const ref=await one(q,'SELECT drop_id FROM pledges WHERE id=$1',[pledgeId]);
  const d=await one(q,'SELECT * FROM drops WHERE id=$1 FOR UPDATE',[ref.drop_id]);
  const p=await one(q,'SELECT * FROM pledges WHERE id=$1 FOR UPDATE',[pledgeId]);ensure(p.user_id===user,'Order belongs to another student',403);
  const existing=await q.q('SELECT * FROM orders WHERE pledge_id=$1',[pledgeId]);if(existing.length)return existing[0];
  ensure(d.state==='PAYMENT_OPEN'&&new Date(d.payment_ends_at).getTime()>Date.now()&&p.status==='ELIGIBLE','Pledge is not eligible for payment');
- const o=await one(q,'INSERT INTO orders(id,user_id,campus_id,drop_id,pledge_id,variant_id,quantity,total) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',[uid(),user,d.campus_id,d.id,p.id,p.variant_id,p.quantity,d.price*p.quantity]);await q.q("UPDATE pledges SET status='CONVERTED' WHERE id=$1",[p.id]);return o;
+ const price=d.snapshot?.price??d.price;
+ const variant=await one(q,'SELECT color,size FROM variants WHERE id=$1',[p.variant_id]);
+ const snapshot={unitPrice:price,quantity:p.quantity,variantId:p.variant_id,...variant,eligibility:d.snapshot};
+ const o=await one(q,'INSERT INTO orders(id,user_id,campus_id,drop_id,pledge_id,variant_id,quantity,total,commercial_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[uid(),user,d.campus_id,d.id,p.id,p.variant_id,p.quantity,price*p.quantity,JSON.stringify(snapshot)]);await q.q("UPDATE pledges SET status='CONVERTED',revision=revision+1 WHERE id=$1",[p.id]);await notify(q,user,'Pledge converted to an order. Price and eligibility are saved; payment remains optional until the deadline.');return o;
  });}
 export async function obligation(db:Database,user:string,id:string,choice:'deposit'|'full'|'balance',provider='simulator'){return db.tx(async q=>{
  const ref=await one(q,'SELECT drop_id FROM orders WHERE id=$1',[id]);
@@ -55,7 +51,7 @@ export async function capture(db:Database,eventId:string,paymentId:string,obliga
  const completed=paidAt?new Date(paidAt).getTime():Date.now();ensure(Number.isFinite(completed)&&completed<=Date.now()+300000,'Invalid payment time',400);
  const reason=b.captured||o.paid+amount>o.total?'OVERPAYMENT':
   completed>new Date(b.expires_at).getTime()?'OBLIGATION_EXPIRED':
-  o.paid===0&&(campaign.state!=='PAYMENT_OPEN'||completed>new Date(campaign.payment_ends_at).getTime())?'CAMPAIGN_INELIGIBLE':
+  o.paid===0&&(!['PAYMENT_OPEN','PAYMENT_CLOSED'].includes(campaign.state)||completed>new Date(campaign.payment_ends_at).getTime())?'CAMPAIGN_INELIGIBLE':
   o.payment_hold?'EXISTING_PAYMENT_HOLD':null;
  const credited=reason?0:amount;
  await q.q('INSERT INTO payment_events(id,provider_payment_id,obligation_id,amount,provider,credited_amount) VALUES($1,$2,$3,$4,$5,$6)',[gateway+':'+eventId,paymentId,b.id,amount,gateway,credited]);
@@ -67,12 +63,13 @@ export async function capture(db:Database,eventId:string,paymentId:string,obliga
   await notify(q,o.user_id,'Payment received but held for operations/refund review. Do not pay again.');
  }else{
   await q.q("UPDATE orders SET paid=paid+$2,fulfillment=CASE WHEN fulfillment='AWAITING_PAYMENT' THEN 'CONFIRMED' ELSE fulfillment END WHERE id=$1",[o.id,credited]);
+  await q.q("UPDATE pledges SET status='CONVERTED' WHERE id=$1 AND status='PAYMENT_EXPIRED'",[o.pledge_id]);
   await notify(q,o.user_id,'Payment confirmed. Your campus order is saved.');
  }
  return {captured:true,credited,exception:reason};
  });}
 export async function approve(db:Database,user:string,id:string){return db.tx(async q=>{
- const d=await one(q,'SELECT * FROM drops WHERE id=$1 FOR UPDATE',[id]);await role(q,user,d.campus_id,['admin']);ensure(d.state==='PAYMENT_OPEN','Campaign is not awaiting production approval');
+ const d=await one(q,'SELECT * FROM drops WHERE id=$1 FOR UPDATE',[id]);await role(q,user,d.campus_id,['admin']);ensure(['PAYMENT_OPEN','PAYMENT_CLOSED'].includes(d.state),'Campaign is not awaiting production approval');
  await q.q('SELECT id FROM orders WHERE drop_id=$1 ORDER BY id FOR UPDATE',[id]);
  const pending=await q.q('SELECT b.id FROM obligations b JOIN orders o ON o.id=b.order_id WHERE o.drop_id=$1 AND b.captured=false AND b.expires_at>now()',[id]);ensure(!pending.length,'Wait for active payment attempts to settle or expire');
  const rows=await q.q('SELECT o.*,v.color,v.color_moq FROM orders o JOIN variants v ON v.id=o.variant_id WHERE o.drop_id=$1 AND o.paid*2>=o.total AND NOT o.payment_hold',[id]);const total=rows.reduce((n,r)=>n+r.quantity,0);ensure(total>=d.moq,'Paid demand is below the supplier MOQ');

@@ -1,7 +1,9 @@
 import {test,expect} from '@playwright/test';
+async function allowance(page:any){const r=await page.request.get('/v1/health');if(Number(r.headers()['x-ratelimit-remaining'])<35){const reset=Number(r.headers()['x-ratelimit-reset']);expect(reset).toBeLessThanOrEqual(60);await page.waitForTimeout((reset+1)*1000);}}
+test.beforeEach(async({request,page})=>{const response=await request.get('/v1/health');const remaining=Number(response.headers()['x-ratelimit-remaining']);if(remaining<90){const reset=Number(response.headers()['x-ratelimit-reset']);expect(reset).toBeGreaterThanOrEqual(0);expect(reset).toBeLessThanOrEqual(60);await page.waitForTimeout((reset+1)*1000);}});
 test('persisted four-role commerce, keyboard access, errors and responsive layouts',async({page})=>{
- const account=page.locator('button.account');
- async function signIn(role:string){
+ test.setTimeout(240000);const account=page.locator('button.account');
+ async function signIn(role:string){await allowance(page);
   await account.click();const button=page.getByRole('button',{name:(role==='student2'?'Student 02':role)+' ↗',exact:true});
   const responsePromise=page.waitForResponse(r=>r.url().endsWith('/v1/auth/dev')&&r.request().method()==='POST');await button.click();const response=await responsePromise;
   if(response.status()===429){
@@ -25,7 +27,7 @@ test('persisted four-role commerce, keyboard access, errors and responsive layou
  await signIn('student');await view.click();await page.getByLabel('Colour & size').selectOption('north-hoodie-Forest-M');await page.getByLabel('Quantity',{exact:true}).fill('2');
  await page.getByRole('button',{name:'Pledge for free'}).click();await expect(page.getByRole('status')).toContainText('No payment taken');
  await page.reload();await activity();await expect(page.locator('.activity-row')).toContainText('2 unit(s)');await screenshot('mobile-pledge');
- await signIn('curator');await operations();await page.locator('.activity-row').filter({hasText:'The Collective Hoodie'}).getByRole('button',{name:'Close pledges & evaluate'}).click();await expect(page.getByRole('status')).toContainText('Campaign locked');
+ await signIn('curator');await operations();await page.locator('.campaign-card').filter({hasText:'The Collective Hoodie'}).getByRole('button',{name:'Close & evaluate',exact:true}).click();const closeForm=page.getByRole('form',{name:'Campaign action'});await closeForm.getByLabel('Reason for change').fill('Pilot pledge window complete');await closeForm.getByRole('button',{name:'Confirm campaign action'}).click();await expect(closeForm).toHaveCount(0);
  await signIn('admin');await operations();await page.getByRole('button',{name:'Approve paid production'}).click();await expect(page.getByRole('status')).toContainText('Paid demand is below');await screenshot('mobile-unpaid-error');
  await signIn('student');await activity();await page.getByRole('button',{name:'Confirm purchase'}).click();await page.getByRole('button',{name:/Pay 50%/}).click();await expect(page.getByRole('status')).toContainText('No money moved');
  await signIn('admin');await operations();await page.getByRole('button',{name:'Approve paid production'}).click();await expect(page.getByRole('status')).toContainText('Production approved');

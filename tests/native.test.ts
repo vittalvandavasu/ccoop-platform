@@ -7,6 +7,7 @@ import * as D from '../apps/api/src/domain.js';
 import * as P from '../apps/api/src/payments.js';
 import {decimal,type CashfreeAdapter} from '../apps/api/src/cashfree.js';
 import {startWorker} from '../apps/api/src/worker.js';
+import * as C from '../apps/api/src/campaigns.js';
 let a:Database,b:Database,control:pg.Pool;
 const drop='north-hoodie',variant=drop+'-Forest-M';
 beforeAll(async()=>{
@@ -74,8 +75,30 @@ it('invalid receipt rolls back without poisoning a concurrent valid receipt',asy
 });
 it('runs the BullMQ worker against Redis without pretending to deliver external notifications',async()=>{
  if(!process.env.REDIS_URL)throw Error('REDIS_URL required');await D.notify(a,'student','Native worker verification');
+ await a.q("UPDATE drops SET state='SCHEDULED',publishes_at=now()-interval '1 hour' WHERE id=$1",[drop]);
  const name='ccoop-test-'+D.uid(),runtime=await startWorker(a,process.env.REDIS_URL,name,60000);
  const redis=new URL(process.env.REDIS_URL),events=new QueueEvents(name,{connection:{host:redis.hostname,port:Number(redis.port)||6379}});
- try{await events.waitUntilReady();const job=await runtime.queue.add('poll',{});const result=await job.waitUntilFinished(events,10000);expect(result).toMatchObject({event:'outbox_pending',count:1,externalDelivery:'not_configured'});expect((await D.one(a,'SELECT delivered_at FROM outbox')).delivered_at).toBeNull();await runtime.queue.removeJobScheduler('outbox-poll');}
+ try{await events.waitUntilReady();const job=await runtime.queue.add('poll',{});const result=await job.waitUntilFinished(events,10000);expect(result).toMatchObject({event:'outbox_pending',count:1,externalDelivery:'not_configured'});expect((await D.one(a,'SELECT delivered_at FROM outbox')).delivered_at).toBeNull();expect((await D.one(a,'SELECT state FROM drops WHERE id=$1',[drop])).state).toBe('PLEDGING');const again=await runtime.queue.add('poll',{});await again.waitUntilFinished(events,10000);expect(await a.q("SELECT * FROM audit WHERE action='SCHEDULE_PUBLISHED'")).toHaveLength(1);await runtime.queue.removeJobScheduler('outbox-poll');}
  finally{await events.close();await runtime.close();}
 },20000);
+it.each(['edit','cancel'] as const)('serializes pledge %s against campaign closure',async action=>{
+ const p=await D.pledge(a,'student',drop,variant,2,D.uid());
+ const results=await overlap('drops',drop,()=>C.changePledge(a,'student',p.id,{key:D.uid(),revision:0,action,variantId:variant,quantity:3}),()=>D.lockDrop(b,'curator',drop));
+ expect(results[1].status).toBe('fulfilled');const d=await D.one(a,'SELECT * FROM drops WHERE id=$1',[drop]),pledge=await D.one(a,'SELECT * FROM pledges WHERE id=$1',[p.id]);
+ expect(d.snapshot.total).toBe(pledge.status==='CANCELED'?0:pledge.quantity);expect(await a.q("SELECT * FROM audit WHERE action='CAMPAIGN_LOCKED'")).toHaveLength(1);
+});
+it('serializes a color switch against overdue resolution and rejects decisions after the deadline',async()=>{
+ await a.q("UPDATE variants SET color_moq=3 WHERE drop_id=$1 AND color='Ink'",[drop]);await D.pledge(a,'student',drop,variant,2,D.uid());const p=await D.pledge(a,'student2',drop,drop+'-Ink-M',1,D.uid());await D.lockDrop(a,'curator',drop);
+ const pledge=await D.one(a,'SELECT * FROM pledges WHERE id=$1',[p.id]);await a.q("UPDATE drops SET resolution_ends_at=now()-interval '1 second' WHERE id=$1",[drop]);
+ const results=await overlap('drops',drop,()=>C.changePledge(a,'student2',p.id,{key:D.uid(),revision:pledge.revision,action:'switch',variantId:variant,price:129900}),()=>C.recoverCampaigns(b));
+ expect(results[0].status).toBe('rejected');expect(results[1].status).toBe('fulfilled');expect((await D.one(a,'SELECT status FROM pledges WHERE id=$1',[p.id])).status).toBe('EXPIRED');expect((await D.one(a,'SELECT state FROM drops WHERE id=$1',[drop])).state).toBe('PAYMENT_OPEN');
+});
+it('payment expiry racing with timely verification preserves the attempt and credits exactly once',async()=>{
+ const o=await eligible(),ob=await D.obligation(a,'student',o.id,'full','cashfree');const paidAt=new Date(Date.now()-2000).toISOString();await a.q("UPDATE drops SET payment_ends_at=now()-interval '1 second' WHERE id=$1",[drop]);
+ const results=await overlap('drops',drop,()=>D.capture(a,'expiry-race','expiry-pay',ob.id,ob.amount,'cashfree',paidAt),()=>C.recoverCampaigns(b));expect(fulfilled(results)).toHaveLength(2);
+ expect((await D.one(a,'SELECT paid FROM orders WHERE id=$1',[o.id])).paid).toBe(o.total);expect(await a.q('SELECT * FROM obligations')).toHaveLength(1);expect(await a.q('SELECT * FROM payment_events')).toHaveLength(1);expect((await D.one(a,'SELECT status FROM pledges WHERE id=$1',[o.pledge_id])).status).toBe('CONVERTED');
+});
+it('duplicate overdue jobs commit one closure and one set of notifications',async()=>{
+ await D.pledge(a,'student',drop,variant,2,D.uid());await a.q("UPDATE drops SET closes_at=now()-interval '1 second' WHERE id=$1",[drop]);
+ const results=await overlap('drops',drop,()=>C.recoverCampaigns(a),()=>C.recoverCampaigns(b));expect(fulfilled(results)).toHaveLength(2);expect(await a.q("SELECT * FROM audit WHERE action='CAMPAIGN_LOCKED'")).toHaveLength(1);expect(await a.q("SELECT * FROM audit WHERE action='RESOLUTION_FINISHED'")).toHaveLength(1);
+});

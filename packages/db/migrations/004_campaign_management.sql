@@ -1,0 +1,11 @@
+ALTER TABLE drops ADD COLUMN publishes_at timestamptz;
+ALTER TABLE drops ADD COLUMN resolution_ends_at timestamptz;
+ALTER TABLE drops ADD COLUMN media_ref text NOT NULL DEFAULT '';
+ALTER TABLE drops ADD COLUMN revision int NOT NULL DEFAULT 0;
+ALTER TABLE pledges ADD COLUMN revision int NOT NULL DEFAULT 0;
+ALTER TABLE pledges ADD COLUMN original_request jsonb;
+UPDATE pledges SET original_request=jsonb_build_object('variantId',variant_id,'quantity',quantity);
+ALTER TABLE orders ADD COLUMN commercial_snapshot jsonb;
+UPDATE orders o SET commercial_snapshot=jsonb_build_object('unitPrice',o.total/o.quantity,'quantity',o.quantity,'variantId',o.variant_id,'legacy',true);
+CREATE TABLE campaign_requests(user_id text NOT NULL REFERENCES users(id),request_key text NOT NULL,payload_hash text NOT NULL,result jsonb NOT NULL,PRIMARY KEY(user_id,request_key));
+CREATE INDEX campaign_deadlines ON drops(state,closes_at,resolution_ends_at,payment_ends_at);
