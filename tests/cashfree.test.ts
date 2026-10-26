@@ -41,6 +41,7 @@ it('rejects missing, malformed and tampered signatures, and accepts a legitimate
 });
 it('retains failed/dropped/pending attempts and success cannot be downgraded by later failure',async()=>{
  const {order,ob}=await checkout();for(const status of ['PENDING','USER_DROPPED','FAILED'])await P.recordAttempt(db,ob,payment(ob,'attempt-a',status),'fixture');
+ const retry=await P.cashfreeCheckout(db,'student',order.id,'deposit',adapter);expect(retry.obligation.id).toBe(ob.id);
  await P.recordAttempt(db,ob,payment(ob,'attempt-b'),'fixture');await P.recordAttempt(db,ob,payment(ob,'attempt-b','FAILED'),'fixture');
  expect((await D.one(db,'SELECT paid FROM orders WHERE id=$1',[order.id])).paid).toBe(ob.amount);expect((await D.one(db,"SELECT status FROM payment_attempts WHERE payment_id='attempt-b'")).status).toBe('SUCCESS');expect(await db.q('SELECT * FROM payment_observations')).toHaveLength(5);
 });
@@ -49,7 +50,7 @@ it('keeps both successes as evidence and raises an overpayment hold without doub
  const o=await D.one(db,'SELECT * FROM orders WHERE id=$1',[order.id]);expect(o.paid).toBe(ob.amount);expect(o.payment_hold).toBe(true);expect(await db.q('SELECT * FROM payment_events')).toHaveLength(2);expect((await D.one(db,'SELECT reason FROM payment_exceptions')).reason).toBe('OVERPAYMENT');await expect(D.approve(db,'admin','north-hoodie')).rejects.toThrow('Paid demand');
 });
 it('rejects wrong amount, currency, provider order, customer and cross-obligation transaction replay atomically',async()=>{
- const {ob}=await checkout();for(const patch of [{payment_amount:'1.00'},{payment_currency:'USD'},{order_id:'wrong-order'}])await expect(P.recordAttempt(db,ob,{...payment(ob),...patch},'fixture')).rejects.toThrow();
+ const {ob}=await checkout();for(const patch of [{payment_amount:'1.00'},{payment_currency:'USD'},{order_id:'wrong-order'},{order_currency:'USD'},{order_amount:'1.00'}])await expect(P.recordAttempt(db,ob,{...payment(ob),...patch},'fixture')).rejects.toThrow();
  const body=webhook(ob,payment(ob));body.data.customer_details.customer_id='wrong';expect((await send(body)).statusCode).toBe(409);expect(await db.q('SELECT * FROM payment_events')).toHaveLength(0);
  const remote=orders.get(ob.provider_order_id);remote.customer_details.customer_id='other';await expect(P.reconcile(db,ob.id,adapter)).rejects.toThrow('customer');
 });
@@ -68,4 +69,24 @@ it('preserves timely success from a delayed webhook but quarantines an initial c
 it('enforces cross-user and campus access for history, checkout, reconciliation and operations',async()=>{
  const {order}=await checkout();const cookie=await login('student2');for(const path of ['payment','reconcile'])expect((await app.inject({method:'POST',url:'/v1/orders/'+order.id+'/'+path,headers:{origin,cookie},payload:{choice:'deposit'}})).statusCode).toBe(403);
  expect((await app.inject({url:'/v1/orders/'+order.id+'/payments',headers:{cookie}})).statusCode).toBe(403);const host=await login('host');expect((await app.inject({url:'/v1/ops/west',headers:{cookie:host}})).statusCode).toBe(403);
+});
+it('applies a timely success delivered after obligation expiry while the campaign remains eligible',async()=>{
+ const {order,ob}=await checkout();await db.q("UPDATE obligations SET created_at=now()-interval '2 minutes',expires_at=now()-interval '1 minute' WHERE id=$1",[ob.id]);
+ await P.recordAttempt(db,ob,{...payment(ob),payment_time:new Date(Date.now()-90000).toISOString()},'delayed-webhook');
+ expect((await D.one(db,'SELECT paid,payment_hold FROM orders WHERE id=$1',[order.id]))).toMatchObject({paid:ob.amount,payment_hold:false});
+});
+it('rejects a successful provider transaction reused for another obligation',async()=>{
+ const {order,ob}=await checkout();await P.recordAttempt(db,ob,payment(ob),'fixture');
+ const [other]=await db.q("INSERT INTO obligations(id,order_id,amount,expires_at,provider,provider_order_id,customer_ref) VALUES($1,$2,$3,now()+interval '10 minutes','cashfree','other-provider-order','other-customer') RETURNING *",[D.uid(),order.id,ob.amount]);
+ await expect(P.recordAttempt(db,other,payment(other),'fixture')).rejects.toThrow('replay mismatch');expect(await db.q('SELECT * FROM payment_events')).toHaveLength(1);expect((await D.one(db,'SELECT captured FROM obligations WHERE id=$1',[other.id])).captured).toBe(false);
+});
+it('preserves recoverable creation intent after a crash and refuses expired retries during provider uncertainty',async()=>{
+ const o=await eligible();let calls=0;const interrupted:CashfreeAdapter={...adapter,async create(ob){const remote=await adapter.create(ob);if(calls++===0)throw new D.Problem(503,'timeout after creation');return remote;}};
+ await expect(P.cashfreeCheckout(db,'student',o.id,'deposit',interrupted)).rejects.toThrow('timeout');const retry=await P.cashfreeCheckout(db,'student',o.id,'deposit',interrupted);expect(orders.size).toBe(1);expect(await db.q('SELECT * FROM obligations')).toHaveLength(1);
+ await db.q("UPDATE obligations SET expires_at=now()-interval '1 minute' WHERE id=$1",[retry.obligation.id]);
+ await expect(P.cashfreeCheckout(db,'student',o.id,'deposit',adapter)).rejects.toThrow('not finalized');expect(await db.q('SELECT * FROM obligations')).toHaveLength(1);
+});
+it('reconciles without a browser callback and reports failures for retry rather than inventing settlement',async()=>{
+ const {ob}=await checkout();const bad:CashfreeAdapter={...adapter,async payments(){throw new D.Problem(503,'offline');}};await expect(P.reconcile(db,ob.id,bad)).rejects.toThrow('offline');expect((await D.one(db,'SELECT reconciliation_error FROM obligations')).reconciliation_error).toContain('unavailable');expect(await db.q('SELECT * FROM payment_events')).toHaveLength(0);
+ payments.set(ob.provider_order_id,[payment(ob)]);await P.reconcilePending(db,adapter);expect((await D.one(db,'SELECT reconciliation_error,captured FROM obligations'))).toMatchObject({reconciliation_error:null,captured:true});
 });

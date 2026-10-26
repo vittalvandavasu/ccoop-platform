@@ -37,3 +37,14 @@ test('persisted four-role commerce, keyboard access, errors and responsive layou
  const row=page.getByRole('row').filter({hasText:'north-hoodie-Forest-M'});await expect(row.getByRole('cell')).toHaveText(['north-hoodie-Forest-M','0','0','0']);
  await page.setViewportSize({width:1440,height:1000});await screenshot('desktop-host');await signIn('student');await activity();await expect(page.locator('.pill').filter({hasText:'COLLECTED'})).toBeVisible();await screenshot('desktop-collected');
 });
+
+test('a delayed previous-account response cannot repopulate private activity',async({page})=>{
+ await page.goto('/');await page.locator('button.account').click();await page.getByRole('button',{name:'student ↗',exact:true}).click();await expect(page.locator('.login-panel')).toHaveCount(0);
+ let release!:()=>void,started!:()=>void;const waiting=new Promise<void>(r=>{release=r}),captured=new Promise<void>(r=>{started=r});let intercepted=false;
+ await page.route('**/v1/activity',async route=>{
+  if(intercepted){await route.continue();return;}intercepted=true;const response=await route.fetch();started();await waiting;await route.fulfill({response});
+ });
+ await page.reload();await captured;await page.locator('button.account').click();await page.getByRole('button',{name:'Student 02 ↗',exact:true}).click();await expect(page.locator('.login-panel')).toHaveCount(0);await page.getByRole('button',{name:'My activity',exact:true}).click();
+ const completed=page.waitForResponse(r=>r.url().endsWith('/v1/activity'));release();await completed;
+ await expect(page.locator('.activity-row')).toHaveCount(0);await expect(page.locator('.pickup-pass')).toHaveCount(0);await expect(page.getByText('No pledges yet. Your first collective starts in Discover.')).toBeVisible();
+});

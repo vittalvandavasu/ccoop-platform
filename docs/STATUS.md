@@ -1,27 +1,26 @@
-# Acceptance evidence — independent verification, 25 October 2026
+# Cashfree / native verification status — 26 October 2026
 
-Prompt 1 only; later implementation prompts are deferred for review.
+Baseline preserved: 39590783e929e65e21ec292858f668dc602f3756. Branch: codex/cashfree-postgres-verification. Scope excludes Campus Store, unrelated campaign management, live payments and public deployment.
 
-| Gate | Executed result |
+## Evidence categories
+
+| Category | Actual evidence |
 |---|---|
-| Lockfile dependency installation | `npm ci --cache .npm-cache --fetch-retries=0` passed; npm reported 0 vulnerabilities |
-| TypeScript strict check | `npm run typecheck` passed |
-| Domain/API tests | `npm test`: 18 passed (original 16 plus 2 API regressions), PGlite memory databases |
-| Production build | `npm run build` passed, Next.js 16.4.3 |
-| Migration and fictional seed | `npm run db:seed` passed twice on filesystem PGlite, testing repeatability |
-| Browser journey | See browser result below; fresh isolated PGlite database per run |
-| Native PostgreSQL / Redis | Not run: Docker, PostgreSQL and Redis executables absent |
-| Actual Razorpay sandbox | Not run; tests use signed local fixtures and browser payments use simulator |
-| Provider OTP / Google / S3 / devices | Not verified |
-| Push / hosted CI | No remote configured; not run |
+| 1. Fixture tests | 34 passed locally: original domain/API behavior, Cashfree adapter/signatures/retries/history/expiry/ownership, legacy migration preservation. In-memory/file PGlite; no real provider calls. |
+| 2. Native PostgreSQL / Redis | Hosted run 40275209408 passed on implementation commit e8d8c6f: fixtures, PostgreSQL 17 migration/seed twice, 10 native tests including deliberate multi-connection overlaps and a real Redis 7/BullMQ job. Final-head run will be linked after the documentation/final regression update. |
+| 3. Simulator browser | Local four-role Chromium journey passed after Cashfree integration; hosted initial run passed as well. 390px and desktop screenshots, keyboard dialog controls, rate-limit recovery, stock/replay assertions. Both local Chromium tests passed, including the delayed-account-response regression (1.2 minutes total). |
+| 4. Actual Cashfree sandbox | NOT EXECUTED. CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET are absent; no .env file is present. Domain whitelisting and a provider-reachable webhook endpoint also remain to be configured for a full provider rehearsal. |
 
-The restricted Windows sandbox initially blocked npm downloads and tsx user-info access. Retrying the dependency install and database/browser processes with approved access resolved those environment failures. The initial browser run failed on a test selector for Student 02; this was corrected before rerunning.
+Type checks and production build passed locally. Initial hosted result: https://github.com/vittalvandavasu/ccoop-platform/actions/runs/40275209408
 
-See AUDIT.md for corrected defects and remaining gaps. No real funds moved and no public deployment occurred. This is not a complete MVP or production readiness claim.
+No external notification delivery is claimed: the real worker reports outbox counts and leaves delivered_at null. CI never loads provider credentials. No real student data or real payments were sent to a provider.
 
-Production simulator guard: executed import with NODE_ENV=production and PAYMENT_MODE=simulator; startup rejected as expected before opening any database/service. Keyboard evidence is limited to opening the product dialog with Enter, keeping Tab focus inside it, and Escape restoring focus. Real mobile devices, screen readers, Firefox and WebKit were not tested.
+## Configuration handoff
 
-## Browser result
-PASS: npm run test:e2e — 1 complete Chromium journey passed in 1.2 minutes (test body 56.8 seconds). The final run honors the API Retry-After response after rapid identity switches and verifies successful recovery. Stock finishes at healthy=0, allocated=0, available=0 after pickup; replay is rejected. Nine full-page desktop/390px screenshots are in artifacts/. No horizontal page overflow was detected at the captured checkpoints. Desktop discovery, mobile pickup/receipt, and final collected screens were visually inspected.
+Configure sandbox PG credentials directly in the ignored local `ccoop-platform/.env` (see `.env.example` and README). Use PAYMENT_PROVIDER=cashfree, CASHFREE_ENV=sandbox and the exact APP_ORIGIN. Do not paste secrets into chat. Configure Cashfree's allowed domain and sandbox webhook endpoint/version/events as described in README. Callback delivery requires separately authorized reachable hosting; this milestone does not expose the application publicly.
 
-Development runtime remains separate at .data/postgres. Browser databases are under .data/browser-test-* and unit/API tests use memory databases. Stop the development servers before rerunning browser tests.
+## Remaining risks / next step
+
+Actual hosted checkout and provider request/response behavior need a credentialed sandbox rehearsal. Refund/exception resolution is intentionally manual and blocks affected orders. Legacy Razorpay timeout recovery, real OTP/email/SMS, Google UI, S3, store reservations and broad campaign management remain incomplete. Firefox/WebKit, actual phones, screen readers and PWA installation were not exercised.
+
+Proceed to Prompt 2 for campaign management after reviewing this PR and its final CI result, while retaining actual Cashfree sandbox verification as a release gate. Do not treat this as payment launch readiness.

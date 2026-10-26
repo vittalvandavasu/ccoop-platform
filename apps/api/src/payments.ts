@@ -29,6 +29,8 @@ export async function cashfreeCheckout(db:Database,user:string,orderId:string,ch
 export async function recordAttempt(db:Database,ob:any,p:any,source:string){
  D.ensure(String(p.order_id)===ob.provider_order_id,'Cashfree payment order mismatch');
  D.ensure(p.payment_currency==='INR'&&paise(p.payment_amount)===ob.amount,'Cashfree payment amount/currency mismatch');
+ if(p.order_currency!==undefined)D.ensure(p.order_currency==='INR','Cashfree payment order currency mismatch');
+ if(p.order_amount!==undefined)D.ensure(paise(p.order_amount)===ob.amount,'Cashfree payment order amount mismatch');
  D.ensure(typeof p.cf_payment_id==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(p.cf_payment_id),'Invalid provider transaction',400);
  D.ensure(['SUCCESS','FAILED','PENDING','USER_DROPPED','NOT_ATTEMPTED','CANCELLED','VOID'].includes(p.payment_status),'Unknown payment status',400);
  if(p.payment_status==='SUCCESS')D.ensure(typeof (p.payment_completion_time||p.payment_time)==='string','Missing successful payment time',400);
@@ -50,15 +52,18 @@ export async function recordAttempt(db:Database,ob:any,p:any,source:string){
 export async function reconcile(db:Database,id:string,adapter=cashfreeAdapter()){
  const ob=await D.one(db,"SELECT * FROM obligations WHERE id=$1 AND provider='cashfree'",[id]);
  D.ensure(ob.provider_order_id,'No provider order exists yet');
+ await db.q('UPDATE obligations SET last_reconcile_at=now() WHERE id=$1',[id]);
+ try {
  const remote=await adapter.order(ob.provider_order_id);validateOrder(ob,remote);
  const payments=await adapter.payments(ob.provider_order_id);D.ensure(Array.isArray(payments),'Invalid provider payments',502);
  // Success first makes mixed/out-of-order histories deterministic.
  payments.sort((a,b)=>Number(b.payment_status==='SUCCESS')-Number(a.payment_status==='SUCCESS'));
  for(const p of payments)await recordAttempt(db,ob,p,'reconciliation');
- await db.q('UPDATE obligations SET last_checked_at=now() WHERE id=$1',[id]);
+ await db.q('UPDATE obligations SET last_checked_at=now(),reconciliation_error=NULL WHERE id=$1',[id]);
  return D.one(db,'SELECT id,provider,checkout_state,captured,expires_at FROM obligations WHERE id=$1',[id]);
+ }catch(e){await db.q("UPDATE obligations SET reconciliation_error='Verification unavailable; retry or request operations review' WHERE id=$1",[id]);throw e;}
 }
 export async function reconcilePending(db:Database,adapter=cashfreeAdapter()){
- const rows=await db.q("SELECT id FROM obligations WHERE provider='cashfree' AND provider_order_id IS NOT NULL ORDER BY last_checked_at NULLS FIRST LIMIT 50");
+ const rows=await db.q("SELECT id FROM obligations WHERE provider='cashfree' AND provider_order_id IS NOT NULL ORDER BY last_reconcile_at NULLS FIRST LIMIT 50");
  let verified=0,failed=0;for(const row of rows){try{await reconcile(db,row.id,adapter);verified++;}catch{failed++;}}return {verified,failed};
 }
