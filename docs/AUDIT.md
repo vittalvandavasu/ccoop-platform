@@ -1,24 +1,27 @@
-# Slice 01 independent audit — 25 October 2026
+# Audit — Cashfree / native verification, 26 October 2026
 
-Scope: Prompt 1 only. Original Git history restored from the supplied bundle (base `38f9122`). Architecture and editorial design retained. No AGENTS.md was present in the extracted repository.
+Baseline 3959078 retained; current branch implements the requested Cashfree and hosted infrastructure milestone only. Original session, malformed Razorpay signature, identity-state and test isolation fixes remain.
 
-## Corrected during this audit
+## Changes reviewed
 
-- Domain/API test files previously ran in parallel against one native PostgreSQL database while the domain suite truncated it. Disable file parallelism and reset the API fixture explicitly. Concurrent requests within individual domain tests still run concurrently.
-- Unknown/expired session cookies returned 404. Return 401 consistently without exposing session lookup results.
-- A 64-character multibyte webhook signature passed the character-length check but caused timingSafeEqual to throw because byte lengths differed. Validate hexadecimal shape and compare decoded digests. Added regression coverage.
-- Development identity switching retained a student's pickup QR/pass and form state. Clear private view state after successful account changes and logout. Browser regression checks switching to student2 hides the pass and orders.
-- Browser suite now owns a fresh filesystem PGlite test database and starts both services, refusing to reuse existing servers. It exercises two-unit pledge, curator lock, unpaid-production rejection, simulated deposit, paid production, receipt, balance, pass, host pickup, replay rejection, persistence after reload, dialog keyboard controls, and 390px layout.
+- Added migrations 002/003 and a version ledger with PostgreSQL advisory locking. A migration fixture starts from the original schema and verifies that legacy funds/provider identities survive repeat startup.
+- Cashfree obligations remain separate from provider attempts, immutable successful receipts, application credits, and exceptions. Monetary parsing uses numeric JSON source strings and BigInt decimal conversion; no floating-point multiplication/rounding is used.
+- Deterministic creation intent/idempotency survives a remote-create timeout or local crash. Expired attempts reconcile before replacement; uncertain remote state fails closed.
+- Signature fixtures cover missing/malformed/tampered values and legitimate delayed retries. Successful events cannot be downgraded, replayed across obligations, or credited twice. Overpayment retains both receipts and blocks fulfillment pending review.
+- Student history/status controls use authenticated APIs. Checkout callback/redirect has no authority to credit funds. Admin exceptions are campus-filtered and no refund is silently issued.
+- Cashfree sandbox endpoint and frontend mode are fixed. Production gateway configuration is rejected; production simulator is forbidden. No real customer fields are sent.
+- Payment admission/settlement now follow the same campaign-first lock order as production. Native CI observes overlapping transactions using pg_stat_activity, rather than relying on Promise.all alone.
+- The worker is exported for real Redis/BullMQ verification; it reports pending outbox records without marking them delivered. Reconciliation failures remain visible and are rotated so one unavailable order cannot starve all later batches.
+- Account changes now invalidate in-flight activity responses as well as clearing rendered QR/form state. Browser regression delays an old response across an identity switch.
 
-## Remaining findings / acceptance gaps
+## Remaining limitations
 
-- Native PostgreSQL multi-session behavior remains a release gate. PGlite serializes one connection and cannot establish native race safety. Docker, PostgreSQL and Redis executables were not available on this host.
-- Payment reconciliation after provider timeouts/crashes is missing. Deadline-expired captures while a campaign remains PAYMENT_OPEN lack a dedicated exception workflow. Provider sandbox behavior has not been verified.
-- Campaigns below MOQ cannot be closed into a failed state; no scheduled closing worker, failed-color self-service, cancellation or unpaid-expiry workflow exists.
-- OTP delivery, Google sign-in UI, S3 uploads and durable external notifications are incomplete. The worker only counts pending outbox rows.
-- Store reservations and partial pickup are absent. Damaged counts are recorded on receipts, but there is no quarantine disposition/reconciliation workflow.
-- Migration startup only reapplies the initial IF NOT EXISTS schema; a versioned migration ledger is needed before schema evolution.
-- Operations fetch errors are swallowed and presented as empty data; broader loading/error recovery still needs work.
-- No remote is configured; no push or hosted CI execution can be claimed.
+Actual Cashfree credentials, allowed checkout domain and provider-reachable callback endpoint are absent. Fixture and simulator successes are not sandbox transaction evidence. Offers, surcharges and partial captures are not supported; mismatched amounts/currency are rejected for investigation. Provider configuration/secret rotation still requires an operational rehearsal. Webhooks that cannot validate the authenticated order return an error so Cashfree can retry; background reconciliation also retries.
 
-No real payments or public deployment are authorized or performed. Later prompts remain deferred for review.
+Payment holds require manual operations/refund review; this milestone does not implement provider refund execution or a hold-resolution workflow. Ambiguous legacy obligations must be reconciled manually. Legacy Razorpay remote timeout recovery is unchanged.
+
+Campaign failure/cancellation/expiry management, Campus Store reservations, quarantine disposition, partial pickup, real OTP/external notifications, Google sign-in UI, S3 and device/PWA testing remain backlog items. No public deployment or production readiness claim is made.
+
+See STATUS.md for executed evidence and the final hosted run. The PR is for review only and must not be merged automatically.
+
+Final review also corrected whole-rupee UI rounding: paise are now displayed exactly when nonzero. A regression verifies an odd-paise deposit rounds upward and leaves the exact remaining balance.
