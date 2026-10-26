@@ -6,12 +6,14 @@ Baseline preserved: 39590783e929e65e21ec292858f668dc602f3756. Branch: codex/cash
 
 | Category | Actual evidence |
 |---|---|
-| 1. Fixture tests | 34 passed locally: original domain/API behavior, Cashfree adapter/signatures/retries/history/expiry/ownership, legacy migration preservation. In-memory/file PGlite; no real provider calls. |
-| 2. Native PostgreSQL / Redis | Hosted run 40275209408 passed on implementation commit e8d8c6f: fixtures, PostgreSQL 17 migration/seed twice, 10 native tests including deliberate multi-connection overlaps and a real Redis 7/BullMQ job. Final-head run will be linked after the documentation/final regression update. |
-| 3. Simulator browser | Local four-role Chromium journey passed after Cashfree integration; hosted initial run passed as well. 390px and desktop screenshots, keyboard dialog controls, rate-limit recovery, stock/replay assertions. Both local Chromium tests passed, including the delayed-account-response regression (1.2 minutes total). |
+| 1. Fixture tests | 35 passed locally: original domain/API behavior, Cashfree adapter/signatures/retries/history/expiry/ownership, legacy migration preservation. In-memory/file PGlite; no real provider calls. |
+| 2. Native PostgreSQL / Redis | Hosted run 40276124361 passed on 94b17ed: 34 domain/API/provider/migration fixtures, PostgreSQL 17 migration/seed twice, and 10 native tests including deliberate multi-connection overlaps and a real Redis 7/BullMQ job. The subsequent odd-paise fixture raises the local fixture count to 35; see PR checks for the final commit run. |
+| 3. Simulator browser | Both local and hosted Chromium tests passed on the Cashfree integration. 390px and desktop screenshots, keyboard dialog controls, rate-limit recovery, stock/replay assertions. Both local Chromium tests passed, including the delayed-account-response regression (1.2 minutes total). |
 | 4. Actual Cashfree sandbox | NOT EXECUTED. CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET are absent; no .env file is present. Domain whitelisting and a provider-reachable webhook endpoint also remain to be configured for a full provider rehearsal. |
 
-Type checks and production build passed locally. Initial hosted result: https://github.com/vittalvandavasu/ccoop-platform/actions/runs/40275209408
+Type checks and production build passed locally. Hosted evidence: https://github.com/vittalvandavasu/ccoop-platform/actions/runs/40276124361
+Review PR (unmerged): https://github.com/vittalvandavasu/ccoop-platform/pull/1
+Latest branch checks: https://github.com/vittalvandavasu/ccoop-platform/actions?query=branch%3Acodex%2Fcashfree-postgres-verification
 
 No external notification delivery is claimed: the real worker reports outbox counts and leaves delivered_at null. CI never loads provider credentials. No real student data or real payments were sent to a provider.
 

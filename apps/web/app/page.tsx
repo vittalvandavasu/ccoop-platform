@@ -2,7 +2,7 @@
 import {useEffect,useRef,useState} from 'react';
 import QRCode from 'qrcode';
 type Row=Record<string,any>;
-const money=(n:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n/100);
+const money=(n:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',minimumFractionDigits:n%100===0?0:2,maximumFractionDigits:2}).format(n/100);
 async function api(path:string,body?:unknown){const r=await fetch('/v1'+path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,cache:'no-store'});const data=await r.json();if(!r.ok)throw Error(data.error||'Connection failed');return data;}
 function Merchandise({kind}:{kind:string}){if(kind==='hoodie')return <img className="garment" src="/hoodie.png" alt="Forest hoodie — fictional merchandise concept"/>;return <svg className="merch-svg" viewBox="0 0 400 440" role="img" aria-label={kind==='tote'?'Canvas tote concept illustration':'Varsity jersey concept illustration'}>{kind==='tote'?<><path d="M135 160V100q0-80 130 0v60" fill="none" stroke="#a7977b" strokeWidth="25"/><path d="M80 145h240l20 250H60z" fill="#ccba98"/><path d="M94 158h212M72 379h254" stroke="#a29174" strokeDasharray="3 4"/><text x="200" y="296" textAnchor="middle" fill="#203a2d" fontSize="85" fontWeight="900">cc.</text></>:<><path d="m135 70 35-20q30 30 60 0l35 20 85 45 35 85-65 30-30-50v220H110V180l-30 50-65-30 35-85z" fill="#864f3e"/><path d="M170 50q30 70 60 0M200 89v311M110 386h180" fill="none" stroke="#e7dac3" strokeWidth="12"/><text x="240" y="205" textAnchor="middle" fill="#e7dac3" fontSize="42" fontWeight="900">C</text></>}</svg>}
 export default function Home(){

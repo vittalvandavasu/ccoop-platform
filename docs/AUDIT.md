@@ -23,3 +23,5 @@ Payment holds require manual operations/refund review; this milestone does not i
 Campaign failure/cancellation/expiry management, Campus Store reservations, quarantine disposition, partial pickup, real OTP/external notifications, Google sign-in UI, S3 and device/PWA testing remain backlog items. No public deployment or production readiness claim is made.
 
 See STATUS.md for executed evidence and the final hosted run. The PR is for review only and must not be merged automatically.
+
+Final review also corrected whole-rupee UI rounding: paise are now displayed exactly when nonzero. A regression verifies an odd-paise deposit rounds upward and leaves the exact remaining balance.

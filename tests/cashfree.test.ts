@@ -90,3 +90,9 @@ it('reconciles without a browser callback and reports failures for retry rather 
  const {ob}=await checkout();const bad:CashfreeAdapter={...adapter,async payments(){throw new D.Problem(503,'offline');}};await expect(P.reconcile(db,ob.id,bad)).rejects.toThrow('offline');expect((await D.one(db,'SELECT reconciliation_error FROM obligations')).reconciliation_error).toContain('unavailable');expect(await db.q('SELECT * FROM payment_events')).toHaveLength(0);
  payments.set(ob.provider_order_id,[payment(ob)]);await P.reconcilePending(db,adapter);expect((await D.one(db,'SELECT reconciliation_error,captured FROM obligations'))).toMatchObject({reconciliation_error:null,captured:true});
 });
+it('rounds an odd-paise deposit upward without losing the exact remaining balance',async()=>{
+ const order=await eligible();await db.q('UPDATE orders SET total=259801 WHERE id=$1',[order.id]);
+ const ob=await D.obligation(db,'student',order.id,'deposit','cashfree');expect(ob.amount).toBe(129901);expect(decimal(ob.amount)).toBe('1299.01');
+ await db.q('UPDATE obligations SET provider_order_id=$2,customer_ref=$3 WHERE id=$1',[ob.id,'odd-paise-order','odd-paise-customer']);await D.capture(db,'odd-event','odd-payment',ob.id,ob.amount,'cashfree',new Date().toISOString());
+ await D.approve(db,'admin','north-hoodie');await D.receive(db,'host','north-hoodie','odd-receipt',[{variantId:'north-hoodie-Forest-M',healthy:2,damaged:0}]);const balance=await D.obligation(db,'student',order.id,'balance','cashfree');expect(balance.amount).toBe(129900);
+});
