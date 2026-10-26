@@ -19,6 +19,14 @@ No external notification delivery is claimed: the real worker reports outbox cou
 
 ## Configuration handoff
 
+### PR #1 payment-provider isolation review fix
+
+Razorpay order creation now requires the selected provider to be Razorpay. Configured credentials alone cannot send simulator checkout to a gateway. Existing obligations retain their provider; conflicting checkout and simulation requests are rejected.
+
+Five HTTP regression cases intercept the real Razorpay SDK's Axios transport and Cashfree's fetch transport using dummy credentials. They verify zero gateway calls for simulator full/deposit/balance checkout, settlement and retries; exact credits with no duplicate financial events; preservation of Cashfree/Razorpay obligations; and normal Razorpay order creation/reuse when selected. The simulator regression reproduced the unwanted mocked Razorpay order before the fix.
+
+Local validation: all 40 fixture tests passed, strict type checking passed, production build passed, and both Chromium journeys passed. Native PostgreSQL/Redis verification runs in the existing GitHub Actions workflow; see PR #1 review evidence for the final commit's actual run and result. Actual Cashfree sandbox transactions remain unverified and are required before payment release.
+
 Configure sandbox PG credentials directly in the ignored local `ccoop-platform/.env` (see `.env.example` and README). Use PAYMENT_PROVIDER=cashfree, CASHFREE_ENV=sandbox and the exact APP_ORIGIN. Do not paste secrets into chat. Configure Cashfree's allowed domain and sandbox webhook endpoint/version/events as described in README. Callback delivery requires separately authorized reachable hosting; this milestone does not expose the application publicly.
 
 ## Remaining risks / next step

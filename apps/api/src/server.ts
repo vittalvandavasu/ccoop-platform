@@ -56,7 +56,7 @@ export async function buildServer(db:Database,options:{cashfree?:CashfreeAdapter
  if(mode==='cashfree')return P.cashfreeCheckout(db,u.id,id,b.choice,cashfree);
  D.ensure(mode!=='razorpay'||gateway,'Razorpay test credentials are not configured',503);
  const o=await D.obligation(db,u.id,id,b.choice,mode);
- if(gateway&&!o.provider_order_id){
+ if(mode==='razorpay'&&gateway&&!o.provider_order_id){
  // A stable receipt plus local lock prevents simultaneous gateway order creation.
  await db.tx(async q=>{const current=await D.one(q,'SELECT * FROM obligations WHERE id=$1 FOR UPDATE',[o.id]);if(current.provider_order_id){o.provider_order_id=current.provider_order_id;return;}const g=await gateway.orders.create({amount:o.amount,currency:'INR',receipt:o.id});await q.q('UPDATE obligations SET provider_order_id=$2 WHERE id=$1',[o.id,g.id]);o.provider_order_id=g.id;});}
  return {obligation:o,mode,keyId:key};

@@ -14,7 +14,7 @@
     "db:seed": "node --env-file-if-exists=.env --import tsx packages/db/seed.ts",
     "worker": "node --env-file-if-exists=.env --import tsx apps/api/src/worker.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --no-file-parallelism tests/domain.test.ts tests/api.test.ts tests/cashfree.test.ts tests/migration.test.ts",
+    "test": "vitest run --no-file-parallelism tests/domain.test.ts tests/api.test.ts tests/cashfree.test.ts tests/migration.test.ts tests/payment-isolation.test.ts",
     "test:native": "vitest run --no-file-parallelism tests/native.test.ts",
     "test:e2e": "playwright test",
     "build": "next build apps/web"
