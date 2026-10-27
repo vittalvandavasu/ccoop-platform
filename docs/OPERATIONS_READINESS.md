@@ -1,5 +1,7 @@
 # Operational readiness register — 27 October 2026
 
+These control classifications are supporting audit evidence. [RELEASE_GATES.md](RELEASE_GATES.md) is the single authoritative release-gate status/approval register.
+
 Assessment is based on repository code/configuration and synthetic CI only. No deployed infrastructure, merchant console, backup store or production credentials were inspected. Owners below are required roles, not assigned individuals. A controlled pilot is blocked until named owners attach evidence and approve the gates. No production change is authorized by this document.
 
 | Item | Classification | Evidence / gap | Owner and next action |

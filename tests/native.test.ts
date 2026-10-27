@@ -31,6 +31,14 @@ async function eligible(){const p=await D.pledge(a,'student',drop,variant,2,'nat
 async function paid(){const o=await eligible(),ob=await D.obligation(a,'student',o.id,'full');await D.capture(a,'native-event','native-pay',ob.id,ob.amount);return o;}
 async function arrived(){const o=await paid();await D.approve(a,'admin',drop);await D.receive(a,'host',drop,'native-receipt',[{variantId:variant,healthy:2,damaged:0}]);return o;}
 const fulfilled=(rows:PromiseSettledResult<any>[])=>rows.filter(r=>r.status==='fulfilled');
+it.each([true,false])('keeps the newer reconciliation status across independent connections (older failure=%s)',async olderFails=>{
+ const o=await eligible(),ob=await D.obligation(a,'student',o.id,'full','cashfree');await a.q("UPDATE obligations SET provider_order_id='fence-order',customer_ref='fence-customer' WHERE id=$1",[ob.id]);await a.q('UPDATE orders SET payment_hold=true WHERE id=$1',[o.id]);
+ const good:CashfreeAdapter={async create(){throw Error('No create');},async order(){return {order_id:'fence-order',order_currency:'INR',order_amount:decimal(ob.amount),customer_details:{customer_id:'fence-customer'}};},async payments(){return [{order_id:'fence-order',cf_payment_id:'fence-payment',payment_status:'SUCCESS',payment_amount:decimal(ob.amount),payment_currency:'INR',payment_time:new Date().toISOString()}];}};
+ let entered!:()=>void,release!:()=>void;const started=new Promise<void>(r=>entered=r),gate=new Promise<void>(r=>release=r);
+ const old={...good,async order(id:string){entered();await gate;if(olderFails)throw Error('old unavailable');return good.order(id);}};const pending=P.reconcile(a,ob.id,old).then(()=>null,e=>e);await started;
+ try{if(olderFails)await P.reconcile(b,ob.id,good);else await expect(P.reconcile(b,ob.id,{...good,async order(){throw Error('new unavailable');}})).rejects.toThrow('new unavailable');}finally{release();}
+ expect(Boolean(await pending)).toBe(olderFails);const latest=await D.one(a,'SELECT reconciliation_error,last_checked_at,captured FROM obligations WHERE id=$1',[ob.id]);expect(latest.reconciliation_error).toBe(olderFails?null:'Verification unavailable; retry or request operations review');expect(Boolean(latest.last_checked_at)).toBe(olderFails);expect(latest.captured).toBe(true);expect(await a.q('SELECT amount,credited_amount FROM payment_events')).toEqual([{amount:ob.amount,credited_amount:0}]);expect(await a.q('SELECT paid,payment_hold FROM orders')).toEqual([{paid:0,payment_hold:true}]);
+});
 it('overlapping pledges enforce the aggregate limit and rollback the losing request',async()=>{
  const results=await overlap('drops',drop,()=>D.pledge(a,'student',drop,variant,6,'native-limit-a'),()=>D.pledge(b,'student',drop,variant,6,'native-limit-b'));
  expect(fulfilled(results)).toHaveLength(1);expect((await D.one(a,'SELECT SUM(quantity)::int n FROM pledges')).n).toBe(6);expect(await a.q('SELECT * FROM payment_events')).toHaveLength(0);

@@ -1,5 +1,7 @@
 # Release evidence package — updated 28 October 2026
 
+Authoritative gate IDs/statuses, approval authorities and closure criteria now live in [RELEASE_GATES.md](RELEASE_GATES.md). This document is a supporting evidence index; its historical tables do not independently close gates.
+
 ## Current decision: NO-GO for a controlled payment pilot
 
 The software has passing synthetic checks; external payment, security, recovery and operational gates remain open. A documented procedure is not an executed rehearsal. No production deployment, merge, financial release, refund or stock adjustment occurred. This update changes documentation only; no additional evidence collection or financial behavior is enabled.

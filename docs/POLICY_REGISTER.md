@@ -2,6 +2,18 @@
 
 All entries below are **PROPOSED / NOT APPROVED**, as of 27 October 2026. Recommendations are engineering advice, not authorization or legal advice. Silence/default settings do not approve them. Named approvers, decision date, chosen option, limits, evidence reference and implementation acceptance must be recorded here before implementation. Only investigation/assignment/notes/authenticated verification with holds retained is already approved.
 
+## Concise approval docket — 28 October (all pending)
+
+| Area / gate | Choices and consequences | Exact approval needed / proposed owner | Required audit evidence |
+|---|---|---|---|
+| Refunds / RG-06 | Return verified eligible money, retain for review, or separately design credit; costs/liability and duplicate compensation differ. | Finance/business: select RF-01–10 rules, eligible categories, amounts/fees, approver limits/separation and failed-refund reconciliation. | Receipt/payment IDs, eligibility, approval, idempotent intent, confirmed provider refund and immutable reconciliation. |
+| Held credit / RG-07 | Keep held, apply only to approved original-order eligibility, or approved refund; wallet is a distinct unimplemented liability. | Finance/campaign: select CR-01–05 release evidence, eligibility, conflicting-evidence treatment and dual approval/limits. | Reviewed evidence version, original order/provider, exact paise/disposition, actor/approver, no duplicate release. |
+| Replacements / RG-08 | Supplier correction, linked replacement, or approved refund; stock/fees/customer consent and double compensation risks differ. | Product/fulfillment/finance: approve RP-01 customer choice, unit lineage, responsibility and compensation rules, or explicitly exclude from pilot. | Original discrepancy/receipt/pickup, consent, approvers, linked replacement and stock/financial disposition. |
+| Partial fulfillment / RG-08 | Retain whole-order flow or introduce per-unit allocation/handover; partial flow affects balance/refund calculation. | Product/finance/fulfillment: approve ST-06 and RF-05 unit/pricing/custody rules or explicit whole-order-only scope. | Per-unit outstanding/delivered evidence, payment allocation, scans/approvals and immutable correction history. |
+| Stock corrections / RG-09 | Quarantine, supplier correction or approved compensating movement; never silently rewrite receipts. | Fulfillment/procurement/finance: approve ST-01–09 custody, recount, disposition authority and valuation consequences. | Physical findings, independent counts, source receipt/movement, actor/approver, allocation checks and correction linkage. |
+
+Named owners are not yet assigned. Required roles, recommended options and this docket do not constitute approvals. Gate status lives in RELEASE_GATES.md; detailed alternatives and safeguards below remain applicable.
+
 ## Current meanings in code
 
 `obligations.amount` is an immutable amount requested for a particular order/provider. `payment_events.amount` is a verified receipt; `credited_amount` is the portion applied to the order, and `orders.paid` is accumulated applied paise. `payment_exceptions` records verified receipts not applied under existing rules. `orders.payment_hold` blocks new payments and handover; it is not a wallet balance or a provider escrow API. `captured` means receipt evidence exists, not that funds were applied, refunded or settled to the merchant's bank. A job being DONE says nothing about provider settlement to a bank. No student credit wallet, refund request/execution API or generic hold-release API exists. Stock on_hand/allocated and movements are separate from money; discrepancy notes cannot change them.

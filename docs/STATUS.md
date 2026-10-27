@@ -1,5 +1,9 @@
 # Campaign management status — 26 October 2026
 
+## Release-gate closure increment — 28 October
+
+[RELEASE_GATES.md](RELEASE_GATES.md) is authoritative for gate IDs, status, evidence, proposed responsibilities, approval authority and closure criteria. No operational/business gate is declared closed. The current correction adds migration 006 and request-token fencing for concurrent reconciliation error/last-check metadata; authenticated older receipts still enter the existing idempotent ledger and preserve holds. Deterministic fixtures/native tests cover both completion orders; legacy upgrade checks preserve records. Current exact-head CI evidence belongs in PR #3. Raw webhook retention and CF-01–14 remain blocked on the documented external prerequisites and approvals.
+
 ## Pilot evidence package — 28 October
 
 [RELEASE_READINESS.md](RELEASE_READINESS.md) is the consolidated evidence index and current NO-GO recommendation. PR heads/dependencies and both successful 89eaa58 runs were rechecked; this documentation-only continuation will record fresh exact-commit CI evidence in PR #3. Cashfree's execution ledger explicitly records 0/14 real scenarios executed and their remaining dependencies. The minimal webhook retention correction is proposed, not implemented pending access/retention/storage approval. RP-01 explicitly covers replacement policy alongside existing partial-fulfillment decisions. No implementation, migration, money, holds or stock behavior changed in this continuation.

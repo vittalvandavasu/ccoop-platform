@@ -6,20 +6,20 @@ No real-provider evidence was supplied or found in the project evidence records.
 
 | Scenario | Actual result | Outstanding dependency / responsible role |
 |---|---|---|
-| CF-01 Order creation/checkout | NOT EXECUTED | Merchant admin: protected sandbox credentials/allowed domain; payments operator: fresh eligible synthetic order and checkout. |
-| CF-02 Server verification | NOT EXECUTED | Payments operator: genuine successful test transaction and authenticated API evidence, including received/applied comparison. |
-| CF-03 Valid webhook | NOT EXECUTED | Platform/merchant admin: authorized TLS callback route and genuine signed delivery; security-approved evidence capture. |
-| CF-04 Duplicate webhook | NOT EXECUTED | Payments operator: supported resend of CF-03 and before/after deduplication counts. |
-| CF-05 Delayed webhook | NOT EXECUTED | Payments/platform: authorized delivery interruption/resend and trustworthy completion/arrival timestamps. |
-| CF-06 Failed payment | NOT EXECUTED | Payments operator: current provider-supported failed instrument and observed failed-only history. |
-| CF-07 Pending payment | NOT EXECUTED | Merchant admin: confirm supported pending scenario; operator: observe inconclusive job/retry history. |
-| CF-08 Timeout/unavailable verification | NOT EXECUTED | Platform: authorized isolated outbound fault injection and recovery; no production interruption. |
-| CF-09 Late payment | NOT EXECUTED | Payments: establish provider-supported late completion; if unsupported record NOT EXERCISED, not PASS. |
-| CF-10 Amount mismatch | NOT EXECUTED | Payments: confirm any genuine sandbox mismatch mechanism; otherwise retain automated-only rejection evidence. |
-| CF-11 Multiple attempts | NOT EXECUTED | Payments operator: supported attempt retry history with distinct provider IDs. |
-| CF-12 Worker interruption/recovery | NOT EXECUTED | Platform: native rehearsal services and authorized kill/restart window against genuine sandbox evidence. |
-| CF-13 Expiry with outstanding attempts | NOT EXECUTED | Payments/platform: pending provider attempt plus observed scheduler expiry and subsequent verification. |
-| CF-14 Inconclusive follow-up | NOT EXECUTED | Payments/admin: CF-07/08 result then provider recovery and reasoned retry, with hold/credit evidence. |
+| CF-01 Order creation/checkout | BLOCKED — NOT EXECUTED | Merchant admin: protected sandbox credentials/allowed domain; payments operator: fresh eligible synthetic order and checkout. |
+| CF-02 Server verification | BLOCKED — NOT EXECUTED | Payments operator: genuine successful test transaction and authenticated API evidence, including received/applied comparison. |
+| CF-03 Valid webhook | BLOCKED — NOT EXECUTED | Platform/merchant admin: authorized TLS callback route and genuine signed delivery; security-approved evidence capture. |
+| CF-04 Duplicate webhook | BLOCKED — NOT EXECUTED | Payments operator: supported resend of CF-03 and before/after deduplication counts. |
+| CF-05 Delayed webhook | BLOCKED — NOT EXECUTED | Payments/platform: authorized delivery interruption/resend and trustworthy completion/arrival timestamps. |
+| CF-06 Failed payment | BLOCKED — NOT EXECUTED | Payments operator: current provider-supported failed instrument and observed failed-only history. |
+| CF-07 Pending payment | BLOCKED — NOT EXECUTED | Merchant admin: confirm supported pending scenario; operator: observe inconclusive job/retry history. |
+| CF-08 Timeout/unavailable verification | BLOCKED — NOT EXECUTED | Platform: authorized isolated outbound fault injection and recovery; no production interruption. |
+| CF-09 Late payment | BLOCKED — NOT EXECUTED | Payments: establish provider-supported late completion; if unsupported record NOT EXERCISED, not PASS. |
+| CF-10 Amount mismatch | BLOCKED — NOT EXECUTED | Payments: confirm any genuine sandbox mismatch mechanism; otherwise retain automated-only rejection evidence. |
+| CF-11 Multiple attempts | BLOCKED — NOT EXECUTED | Payments operator: supported attempt retry history with distinct provider IDs. |
+| CF-12 Worker interruption/recovery | BLOCKED — NOT EXECUTED | Platform: native rehearsal services and authorized kill/restart window against genuine sandbox evidence. |
+| CF-13 Expiry with outstanding attempts | BLOCKED — NOT EXECUTED | Payments/platform: pending provider attempt plus observed scheduler expiry and subsequent verification. |
+| CF-14 Inconclusive follow-up | BLOCKED — NOT EXECUTED | Payments/admin: CF-07/08 result then provider recovery and reasoned retry, with hold/credit evidence. |
 
 ## Minimal webhook evidence correction — proposal only
 

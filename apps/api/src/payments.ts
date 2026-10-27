@@ -52,16 +52,19 @@ export async function recordAttempt(db:Database,ob:any,p:any,source:string){
 export async function reconcile(db:Database,id:string,adapter=cashfreeAdapter()){
  const ob=await D.one(db,"SELECT * FROM obligations WHERE id=$1 AND provider='cashfree'",[id]);
  D.ensure(ob.provider_order_id,'No provider order exists yet');
- await db.q('UPDATE obligations SET last_reconcile_at=now() WHERE id=$1',[id]);
+ const token=D.uid();
+ await db.q('UPDATE obligations SET last_reconcile_at=now(),reconciliation_token=$2 WHERE id=$1',[id,token]);
  try {
  const remote=await adapter.order(ob.provider_order_id);validateOrder(ob,remote);
  const payments=await adapter.payments(ob.provider_order_id);D.ensure(Array.isArray(payments),'Invalid provider payments',502);
  // Success first makes mixed/out-of-order histories deterministic.
  payments.sort((a,b)=>Number(b.payment_status==='SUCCESS')-Number(a.payment_status==='SUCCESS'));
  for(const p of payments)await recordAttempt(db,ob,p,'reconciliation');
- await db.q('UPDATE obligations SET last_checked_at=now(),reconciliation_error=NULL WHERE id=$1',[id]);
+ // Only the most recently started check owns this display metadata. An older
+ // check may still supply valid receipt evidence through normal deduplication.
+ await db.q('UPDATE obligations SET last_checked_at=now(),reconciliation_error=NULL WHERE id=$1 AND reconciliation_token=$2',[id,token]);
  return D.one(db,'SELECT id,provider,checkout_state,captured,expires_at FROM obligations WHERE id=$1',[id]);
- }catch(e){await db.q("UPDATE obligations SET reconciliation_error='Verification unavailable; retry or request operations review' WHERE id=$1",[id]);throw e;}
+ }catch(e){await db.q("UPDATE obligations SET reconciliation_error='Verification unavailable; retry or request operations review' WHERE id=$1 AND reconciliation_token=$2",[id,token]);throw e;}
 }
 export async function reconcilePending(db:Database,adapter=cashfreeAdapter()){
  const rows=await db.q("SELECT id FROM obligations WHERE provider='cashfree' AND provider_order_id IS NOT NULL ORDER BY last_reconcile_at NULLS FIRST LIMIT 50");
