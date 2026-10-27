@@ -1,5 +1,38 @@
 # Cashfree sandbox rehearsal — NOT EXECUTED
 
+## Execution ledger — checked 28 October 2026
+
+No real-provider evidence was supplied or found in the project evidence records. Local .env and CASHFREE_CLIENT_ID/CASHFREE_CLIENT_SECRET/DATABASE_URL/REDIS_URL remain absent (presence checked without printing values). Existing automated fixtures do not change any actual result below. Prerequisites, actions, expected provider/application states, evidence E and recovery instructions are defined in the CF-01–14 execution sheet below.
+
+| Scenario | Actual result | Outstanding dependency / responsible role |
+|---|---|---|
+| CF-01 Order creation/checkout | NOT EXECUTED | Merchant admin: protected sandbox credentials/allowed domain; payments operator: fresh eligible synthetic order and checkout. |
+| CF-02 Server verification | NOT EXECUTED | Payments operator: genuine successful test transaction and authenticated API evidence, including received/applied comparison. |
+| CF-03 Valid webhook | NOT EXECUTED | Platform/merchant admin: authorized TLS callback route and genuine signed delivery; security-approved evidence capture. |
+| CF-04 Duplicate webhook | NOT EXECUTED | Payments operator: supported resend of CF-03 and before/after deduplication counts. |
+| CF-05 Delayed webhook | NOT EXECUTED | Payments/platform: authorized delivery interruption/resend and trustworthy completion/arrival timestamps. |
+| CF-06 Failed payment | NOT EXECUTED | Payments operator: current provider-supported failed instrument and observed failed-only history. |
+| CF-07 Pending payment | NOT EXECUTED | Merchant admin: confirm supported pending scenario; operator: observe inconclusive job/retry history. |
+| CF-08 Timeout/unavailable verification | NOT EXECUTED | Platform: authorized isolated outbound fault injection and recovery; no production interruption. |
+| CF-09 Late payment | NOT EXECUTED | Payments: establish provider-supported late completion; if unsupported record NOT EXERCISED, not PASS. |
+| CF-10 Amount mismatch | NOT EXECUTED | Payments: confirm any genuine sandbox mismatch mechanism; otherwise retain automated-only rejection evidence. |
+| CF-11 Multiple attempts | NOT EXECUTED | Payments operator: supported attempt retry history with distinct provider IDs. |
+| CF-12 Worker interruption/recovery | NOT EXECUTED | Platform: native rehearsal services and authorized kill/restart window against genuine sandbox evidence. |
+| CF-13 Expiry with outstanding attempts | NOT EXECUTED | Payments/platform: pending provider attempt plus observed scheduler expiry and subsequent verification. |
+| CF-14 Inconclusive follow-up | NOT EXECUTED | Payments/admin: CF-07/08 result then provider recovery and reasoned retry, with hold/credit evidence. |
+
+## Minimal webhook evidence correction — proposal only
+
+Normalized observations currently deduplicate provider/payment/status and retain obligation, amount, source and observation time. They support ledger reconstruction but do not preserve exact callback bytes, delivery repetitions, rejected payloads or original signature evidence. They are insufficient to claim full forensic webhook retention. Existing payment/event/reference records must remain unchanged.
+
+Smallest proposed extension, after approval: a versioned additive delivery-evidence table linked to the existing obligation/campus, recording a server-generated receipt ID, receive time, provider/event type, normalized transaction ID/status, SHA-256 digest of original body, verified-signature outcome, processing outcome and correlation to the existing observation/event. A digest supports comparison but cannot reconstruct a body or independently prove authentication. Do not store keys, cookies, checkout tokens, arbitrary headers, customer contact details or whole provider objects in this metadata table. Unknown/invalid signatures should yield bounded aggregate security telemetry, not unlimited attacker-controlled durable payload storage. Known authorized deliveries that fail later provider lookup need a distinct inconclusive processing state, not a false success.
+
+If exact raw bytes are required for disputes/signature reproduction, use separately approved encrypted restricted storage with only an opaque object reference in metadata. Access must be server-side, campus-scoped finance/investigator plus separately authorized security custodians; no raw-payload endpoint in general operations or student APIs. Log evidence reads/exports and separate writer/read/delete permissions. Protected originals must remain byte-exact; redacted derivatives are for sharing only. Never expose originals or signatures in Git, CI artifacts, standard logs or screenshots.
+
+Before implementation, security/privacy and finance must approve: whether raw retention is necessary; exact allowlisted fields; retention duration by evidence class; deletion cadence and verification; legal/dispute holds; encryption/key custody; named roles; export/redaction; and treatment of rejected/unmapped callbacks. No duration is invented here and no silence constitutes approval. Application observations/financial history must not be deleted by a raw-evidence expiry job. Required tests: unauthorized/cross-campus access, secret/PII exclusion, invalid signature no payload admission, duplicate delivery without duplicate credit, provider outage evidence, atomic/linkage recovery, bounded storage, expiry vs legal hold and audit-write failure. Proposed storage failures must not produce a success acknowledgement that loses required evidence. The deployed retention system itself needs operational evidence, not only tests.
+
+This correction is not implemented: the required access/retention policy and protected storage are absent. Adding raw collection now would create an unapproved sensitive-data retention obligation. The existing authenticated verification path and holds remain unchanged.
+
 This is a reproducible acceptance checklist, not provider evidence. No local .env, CASHFREE_CLIENT_ID or CASHFREE_CLIENT_SECRET was found on 27 October 2026. Native DATABASE_URL/REDIS_URL were also unset. Never paste credentials or raw authenticated requests into chat, source, screenshots or logs.
 
 ## Prerequisites

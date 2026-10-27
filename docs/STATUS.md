@@ -1,5 +1,9 @@
 # Campaign management status — 26 October 2026
 
+## Pilot evidence package — 28 October
+
+[RELEASE_READINESS.md](RELEASE_READINESS.md) is the consolidated evidence index and current NO-GO recommendation. PR heads/dependencies and both successful 89eaa58 runs were rechecked; this documentation-only continuation will record fresh exact-commit CI evidence in PR #3. Cashfree's execution ledger explicitly records 0/14 real scenarios executed and their remaining dependencies. The minimal webhook retention correction is proposed, not implemented pending access/retention/storage approval. RP-01 explicitly covers replacement policy alongside existing partial-fulfillment decisions. No implementation, migration, money, holds or stock behavior changed in this continuation.
+
 ## Release assurance continuation — 27 October
 
 Cumulative source/integration audit: [RELEASE_ASSURANCE.md](RELEASE_ASSURANCE.md). Policy questions, alternatives and proposed approvers: [POLICY_REGISTER.md](POLICY_REGISTER.md). Operational classifications/owners and prepared incident/restore procedures: [OPERATIONS_READINESS.md](OPERATIONS_READINESS.md). The Cashfree checklist now has 14 individual execution/evidence/recovery scenarios, all NOT EXECUTED. No secrets, authorized callback environment or native local services were supplied.
