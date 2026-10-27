@@ -1,5 +1,11 @@
 # Campaign management status — 26 October 2026
 
+## Release assurance continuation — 27 October
+
+Cumulative source/integration audit: [RELEASE_ASSURANCE.md](RELEASE_ASSURANCE.md). Policy questions, alternatives and proposed approvers: [POLICY_REGISTER.md](POLICY_REGISTER.md). Operational classifications/owners and prepared incident/restore procedures: [OPERATIONS_READINESS.md](OPERATIONS_READINESS.md). The Cashfree checklist now has 14 individual execution/evidence/recovery scenarios, all NOT EXECUTED. No secrets, authorized callback environment or native local services were supplied.
+
+The queued-verification correction distinguishes an authenticated API check from a verified receipt: empty/pending/failed-only histories remain inconclusive with bounded retries, and verified receipts report received/applied paise and hold separately. Stale lease completions cannot overwrite/count a recovered result. Historical job outcomes must be read alongside financial evidence. Regression/native tests and final hosted outcomes are recorded in PR #3; no merge/deploy or financial/stock disposition is authorized.
+
 ## 27 October continuation: investigation-first scope
 
 Branch codex/operations-investigations continues PR #2 at d93bf62. Both earlier PRs remain unmerged. The previously pending push run 40372901157 completed successfully. GitHub reports the repository public; no visibility change was made.

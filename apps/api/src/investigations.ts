@@ -64,11 +64,20 @@ async function queueView(db:Query,user:string,campus:string,kind:'payment'|'fulf
 // keeps its existing idempotency and eligibility rules; this never releases holds.
 export async function processReconciliations(db:Database,adapter:CashfreeAdapter,limit=10){let completed=0,failed=0;for(let n=0;n<limit;n++){
  const job=await db.tx(async q=>{const [j]=await q.q("SELECT * FROM investigation_actions WHERE action='RECONCILE' AND ((state='QUEUED' AND available_at<=now()) OR (state='PROCESSING' AND lease_until<=now())) ORDER BY available_at,id FOR UPDATE SKIP LOCKED LIMIT 1");if(!j)return null;if(j.attempts>=3){await q.q("UPDATE investigation_actions SET state='FAILED',lease_until=NULL,lease_token=NULL,completed_at=now(),result=result || '{\"outcome\":\"RETRY_BUDGET_EXHAUSTED\",\"jobState\":\"FAILED\"}'::jsonb WHERE id=$1",[j.id]);const c=await D.one(q,'SELECT campus_id FROM investigations WHERE id=$1',[j.investigation_id]);await D.audit(q,j.actor,c.campus_id,'INVESTIGATION_VERIFICATION',j.investigation_id,{actionId:j.id,outcome:'RETRY_BUDGET_EXHAUSTED',financialHoldsRetained:true});return {exhausted:true};}const token=D.uid();return D.one(q,"UPDATE investigation_actions SET state='PROCESSING',attempts=attempts+1,lease_until=now()+interval '2 minutes',lease_token=$2 WHERE id=$1 RETURNING *",[j.id,token]);});if(!job)break;if(job.exhausted){failed++;continue;}
- let outcome='VERIFIED',success=true;
- try{const c=await D.one(db,'SELECT * FROM investigations WHERE id=$1',[job.investigation_id]);await permitted(db,job.actor,c.campus_id,true);await P.reconcile(db,c.obligation_id,adapter);}catch{success=false;outcome='VERIFICATION_UNAVAILABLE_OR_REJECTED';}
- await db.tx(async q=>{const j=await D.one(q,'SELECT * FROM investigation_actions WHERE id=$1 FOR UPDATE',[job.id]);if(j.lease_token!==job.lease_token||j.state!=='PROCESSING')return;
+ let outcome='VERIFICATION_UNAVAILABLE_OR_REJECTED',success=false,payment:Record<string,unknown>|null=null;
+ try{const c=await D.one(db,'SELECT * FROM investigations WHERE id=$1',[job.investigation_id]);await permitted(db,job.actor,c.campus_id,true);await P.reconcile(db,c.obligation_id,adapter);
+  // A successful API request is not a successful payment. Preserve the observed
+  // receipt/credit distinction, including receipts held by existing policies.
+  const evidence=await D.one(db,`SELECT b.captured,b.checkout_state,o.payment_hold,
+   COALESCE((SELECT SUM(e.amount) FROM payment_events e WHERE e.obligation_id=b.id),0)::text received,
+   COALESCE((SELECT SUM(e.credited_amount) FROM payment_events e WHERE e.obligation_id=b.id),0)::text applied
+   FROM obligations b JOIN orders o ON o.id=b.order_id WHERE b.id=$1`,[c.obligation_id]);
+  payment={captured:evidence.captured,checkoutState:evidence.checkout_state,paymentHold:evidence.payment_hold,receivedPaise:Number(evidence.received),appliedPaise:Number(evidence.applied),observedAt:new Date().toISOString()};
+  success=evidence.captured;outcome=success?'PAYMENT_RECEIPT_VERIFIED':'INCONCLUSIVE_NO_VERIFIED_RECEIPT';
+ }catch{outcome='VERIFICATION_UNAVAILABLE_OR_REJECTED';}
+ const recorded=await db.tx(async q=>{const j=await D.one(q,'SELECT * FROM investigation_actions WHERE id=$1 FOR UPDATE',[job.id]);if(j.lease_token!==job.lease_token||j.state!=='PROCESSING')return false;
   const c=await D.one(q,'SELECT * FROM investigations WHERE id=$1',[j.investigation_id]);const state=success?'DONE':j.attempts>=3?'FAILED':'QUEUED';
-  await q.q("UPDATE investigation_actions SET state=$2,lease_until=NULL,lease_token=NULL,available_at=now()+interval '30 seconds',completed_at=$3,result=result || $4::jsonb WHERE id=$1",[j.id,state,state==='QUEUED'?null:new Date(),JSON.stringify({outcome,jobState:state})]);
-  await D.audit(q,j.actor,c.campus_id,'INVESTIGATION_VERIFICATION',c.id,{actionId:j.id,attempt:j.attempts,outcome,financialHoldsRetained:true});
- });if(success)completed++;else failed++;
+  await q.q("UPDATE investigation_actions SET state=$2,lease_until=NULL,lease_token=NULL,available_at=now()+interval '30 seconds',completed_at=$3,result=result || $4::jsonb WHERE id=$1",[j.id,state,state==='QUEUED'?null:new Date(),JSON.stringify({outcome,jobState:state,payment})]);
+  await D.audit(q,j.actor,c.campus_id,'INVESTIGATION_VERIFICATION',c.id,{actionId:j.id,attempt:j.attempts,outcome,payment,financialHoldsRetained:true});return true;
+ });if(recorded){if(success)completed++;else failed++;}
  }return {completed,failed};}
