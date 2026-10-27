@@ -1,7 +1,8 @@
 import {Worker,Queue} from 'bullmq';
 import IORedis from 'ioredis';
 import {database,type Database} from '../../../packages/db/index.js';
-import {reconcilePending} from './payments.js';
+import {reconcilePending,cashfreeAdapter} from './payments.js';
+import {processReconciliations} from './investigations.js';
 import {paymentConfig} from './cashfree.js';
 import {recoverCampaigns} from './campaigns.js';
 export async function startWorker(db:Database,redisUrl:string,queueName='ccoop-outbox',interval=10000){
@@ -9,9 +10,10 @@ export async function startWorker(db:Database,redisUrl:string,queueName='ccoop-o
  const queue=new Queue(queueName,{connection:redis as any});
  const worker=new Worker(queueName,async()=>{
   const campaigns=await recoverCampaigns(db);
+  const investigations=paymentConfig()==='cashfree'&&process.env.CASHFREE_CLIENT_ID&&process.env.CASHFREE_CLIENT_SECRET?await processReconciliations(db,cashfreeAdapter()):{skipped:'credentials_or_provider_not_configured'};
   const [pending]=await db.q('SELECT count(*)::int n FROM outbox WHERE delivered_at IS NULL');
   const payments=paymentConfig()==='cashfree'&&process.env.CASHFREE_CLIENT_ID&&process.env.CASHFREE_CLIENT_SECRET?await reconcilePending(db):{skipped:'credentials_or_provider_not_configured'};
-  const result={event:'outbox_pending',count:pending.n,externalDelivery:'not_configured',payments,campaigns};
+  const result={event:'outbox_pending',count:pending.n,externalDelivery:'not_configured',payments,campaigns,investigations};
   console.log(JSON.stringify(result));return result;
  },{connection:redis as any});
  await worker.waitUntilReady();

@@ -13,6 +13,7 @@ import * as D from './domain.js';
 import {paymentConfig,providerJSON,verifySignature,type CashfreeAdapter} from './cashfree.js';
 import * as P from './payments.js';
 import * as C from './campaigns.js';
+import * as I from './investigations.js';
 const production=process.env.NODE_ENV==='production';
 const dev=process.env.DEV_AUTH==='true'&&!production;
 export async function buildServer(db:Database,options:{cashfree?:CashfreeAdapter}={}){
@@ -36,6 +37,8 @@ export async function buildServer(db:Database,options:{cashfree?:CashfreeAdapter
  for(const d of drops)d.variants=await db.q('SELECT * FROM variants WHERE drop_id=$1 ORDER BY color,size',[d.id]);return drops;
  });
  app.get('/v1/me',async(req)=>{const u=await user(req);return {...u,roles:await db.q('SELECT campus_id,role FROM roles WHERE user_id=$1',[u.id])}});
+ app.get('/v1/investigations/:campus/:kind',async req=>{const p=z.object({campus:z.string(),kind:z.enum(['payment','fulfillment'])}).parse(req.params);return I.queue(db,(await user(req)).id,p.campus,p.kind);});
+ app.post('/v1/investigations/actions',async req=>I.action(db,(await user(req)).id,req.body));
  app.get('/v1/campaigns/:campus',async req=>{const u=await user(req),campus=(req.params as any).campus;await D.role(db,u.id,campus,['curator']);const rows=await db.q("SELECT d.*,COALESCE(SUM(p.quantity) FILTER(WHERE p.status NOT IN ('CANCELED','FAILED','EXPIRED','PAYMENT_EXPIRED')),0)::int pledged FROM drops d LEFT JOIN pledges p ON p.drop_id=d.id WHERE d.campus_id=$1 GROUP BY d.id ORDER BY d.created_at DESC",[campus]);for(const d of rows){d.variants=await db.q('SELECT v.*,COALESCE(SUM(p.quantity) FILTER(WHERE p.status NOT IN (\'CANCELED\',\'FAILED\',\'EXPIRED\',\'PAYMENT_EXPIRED\')),0)::int pledged FROM variants v LEFT JOIN pledges p ON p.variant_id=v.id WHERE v.drop_id=$1 GROUP BY v.id ORDER BY v.color,v.size',[d.id]);}return rows;});
  app.post('/v1/campaigns/:campus/save',async req=>{const b=z.object({id:z.string().nullable(),catalog:C.catalogInput,command:C.commandInput}).parse(req.body);return C.saveDraft(db,(await user(req)).id,(req.params as any).campus,b.id,b.catalog,b.command);});
  app.post('/v1/campaigns/:id/publish',async req=>{const b=z.object({command:C.commandInput,scheduled:z.boolean()}).parse(req.body);return C.publish(db,(await user(req)).id,(req.params as any).id,b.command,b.scheduled);});

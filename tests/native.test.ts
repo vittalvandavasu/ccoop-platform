@@ -8,6 +8,7 @@ import * as P from '../apps/api/src/payments.js';
 import {decimal,type CashfreeAdapter} from '../apps/api/src/cashfree.js';
 import {startWorker} from '../apps/api/src/worker.js';
 import * as C from '../apps/api/src/campaigns.js';
+import * as I from '../apps/api/src/investigations.js';
 let a:Database,b:Database,control:pg.Pool;
 const drop='north-hoodie',variant=drop+'-Forest-M';
 beforeAll(async()=>{
@@ -101,4 +102,19 @@ it('payment expiry racing with timely verification preserves the attempt and cre
 it('duplicate overdue jobs commit one closure and one set of notifications',async()=>{
  await D.pledge(a,'student',drop,variant,2,D.uid());await a.q("UPDATE drops SET closes_at=now()-interval '1 second' WHERE id=$1",[drop]);
  const results=await overlap('drops',drop,()=>C.recoverCampaigns(a),()=>C.recoverCampaigns(b));expect(fulfilled(results)).toHaveLength(2);expect(await a.q("SELECT * FROM audit WHERE action='CAMPAIGN_LOCKED'")).toHaveLength(1);expect(await a.q("SELECT * FROM audit WHERE action='RESOLUTION_FINISHED'")).toHaveLength(1);
+});
+it('duplicate investigation requests append one action and concurrent stale updates cannot overwrite it',async()=>{
+ const o=await eligible(),ob=await D.obligation(a,'student',o.id,'full');const cmd={source:{kind:'payment',id:ob.id},key:D.uid(),revision:0,action:'NOTE',reason:'Native investigation evidence'};
+ const duplicates=await overlap('drops',drop,()=>I.action(a,'admin',cmd),()=>I.action(b,'admin',cmd));expect(fulfilled(duplicates)).toHaveLength(2);expect(await a.q('SELECT * FROM investigation_actions')).toHaveLength(1);
+ const edits=await overlap('drops',drop,()=>I.action(a,'admin',{...cmd,key:D.uid(),revision:1,action:'ASSIGN',assignee:'admin'}),()=>I.action(b,'admin',{...cmd,key:D.uid(),revision:1,action:'REOPEN'}));expect(fulfilled(edits)).toHaveLength(1);expect(await a.q('SELECT * FROM investigation_actions')).toHaveLength(2);expect((await D.one(a,'SELECT paid FROM orders')).paid).toBe(0);expect(await a.q('SELECT * FROM payment_events')).toHaveLength(0);
+});
+it('a financial observation racing with review cannot release a payment hold',async()=>{
+ const o=await eligible(),ob=await D.obligation(a,'student',o.id,'full');await D.capture(a,'review-first','review-first',ob.id,ob.amount);await D.capture(a,'review-extra','review-extra',ob.id,ob.amount);
+ const item=(await I.queue(a,'admin','north','payment')).items[0];const results=await overlap('drops',drop,()=>I.action(a,'admin',{source:item.source,key:D.uid(),revision:0,action:'REVIEW_HELD',reason:'Review existing provider receipts',evidenceVersion:item.evidenceVersion}),()=>D.capture(b,'review-third','review-third',ob.id,ob.amount));expect(results[1].status).toBe('fulfilled');expect((await D.one(a,'SELECT paid,payment_hold FROM orders'))).toEqual({paid:ob.amount,payment_hold:true});expect(await a.q('SELECT * FROM payment_events')).toHaveLength(3);
+});
+it('concurrent reconciliation workers honor a durable lease and settle once',async()=>{
+ const o=await eligible(),ob=await D.obligation(a,'student',o.id,'full','cashfree');await a.q("UPDATE obligations SET provider_order_id='lease-order',customer_ref='lease-customer' WHERE id=$1",[ob.id]);await I.action(a,'admin',{source:{kind:'payment',id:ob.id},key:D.uid(),revision:0,action:'RECONCILE',reason:'Native lease verification'});
+ let entered!:()=>void,release!:()=>void;const started=new Promise<void>(r=>entered=r),gate=new Promise<void>(r=>release=r);let calls=0;
+ const adapter:CashfreeAdapter={async create(){throw Error('Unexpected create');},async order(){calls++;entered();await gate;return {order_id:'lease-order',order_currency:'INR',order_amount:decimal(ob.amount),customer_details:{customer_id:'lease-customer'}};},async payments(){return [{order_id:'lease-order',cf_payment_id:'lease-payment',payment_status:'SUCCESS',payment_amount:decimal(ob.amount),payment_currency:'INR',payment_time:new Date().toISOString()}];}};
+ const first=I.processReconciliations(a,adapter);await started;try{expect(await I.processReconciliations(b,adapter)).toEqual({completed:0,failed:0});expect((await D.one(b,'SELECT state FROM investigation_actions')).state).toBe('PROCESSING');}finally{release();}await first;expect(calls).toBe(1);expect(await a.q('SELECT * FROM payment_events')).toHaveLength(1);
 });

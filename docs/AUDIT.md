@@ -1,5 +1,17 @@
 # Audit — Cashfree / native verification, 26 October 2026
 
+## 27 October investigation-first increment
+
+Repository/PR/workflow reconnaissance and release acceptance gates are recorded in RELEASE_READINESS.md. The duplicate push workflow completed successfully; workflow configuration was preserved. GitHub reported public repository visibility, contradicting earlier private wording; visibility was not changed.
+
+A regression reproduced an out-of-order payment display inconsistency. Obligation checkout state and the response now use the persisted attempt state; immutable observations and financial credits are preserved.
+
+Migration 005 adds operational cases/actions only. Existing obligations, receipts, stock, provider events and order snapshots remain authoritative. Campus-scoped authorization, assignee checks, reason/reference capture, replay keys, revision checks and payment evidence fingerprints protect review actions. REVIEWED_HELD is not refund/credit release or inventory resolution. Receipt-derived shortages/damage and operator-reported incorrect/excess items remain separate from available stock.
+
+Authenticated Cashfree verification is queued durably with leases, sanitized retries and audit outcomes; operator permission is rechecked on execution. Provider calls occur outside transaction locks and use existing idempotent settlement. Simulator mode does not execute gateway work. Native tests cover concurrent case actions, review versus new financial evidence, and competing reconciliation workers.
+
+The user explicitly approved investigation-only scope with holds retained. Refunds, application of held funds, stock adjustment, replacement orders, packing and partial handover remain deferred business-rule gates. Actual Cashfree sandbox rehearsal is not executed. See STATUS and the increment PR for current executed checks, not historical counts below.
+
 ## Prompt 2 campaign-management review
 
 - Migration 004 adds scheduling, revisions, original pledge-request payloads, immutable order snapshots and persisted mutation responses. It preserves existing money, provider mappings, obligations and orders. Legacy order snapshots are explicitly identified.

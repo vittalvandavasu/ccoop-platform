@@ -1,6 +1,6 @@
 # CCOOP.IN — Campaign management and sandbox commerce
 
-Private campus collective commerce implementation. Next.js/React/TypeScript/Tailwind frontend, Fastify API, Drizzle/PostgreSQL persistence and Redis/BullMQ worker. Editorial design retained. This is not a complete MVP or a live-payment release.
+Campus collective commerce development implementation. Next.js/React/TypeScript/Tailwind frontend, Fastify API, Drizzle/PostgreSQL persistence and Redis/BullMQ worker. Editorial design retained. This is not a complete MVP or a live-payment release.
 
 ## Campaign management (Prompt 2)
 
@@ -11,6 +11,14 @@ Students use My activity to edit quantities/SKUs or cancel before lock. The aggr
 Run `npm run worker` with PostgreSQL/Redis for automatic publication, close, resolution expiry and payment expiry. The recurring BullMQ recovery job checks persisted deadlines every 10 seconds and catches up after downtime; no job needs to have survived in Redis to recover a due campaign. Repeated jobs are safe. Payment expiry retains paid orders and outstanding provider attempts, and timely late verification can still credit before production. Production remains a separate paid-demand gate. Notifications commit to the in-app inbox/outbox; no external email/SMS delivery is claimed. In PGlite-only development, curator actions work but timed transitions require the native worker environment.
 
 The full transition policy and resolution of earlier spec ambiguities are in [CAMPAIGNS](docs/CAMPAIGNS.md). Media selection currently uses bundled product illustrations or the existing hoodie image; uploads/S3 are outside this milestone.
+
+## Operational investigations
+
+Operations now includes campus-scoped payment investigations for admins and fulfillment investigations for hosts/admins. Assign an authorized operator, append a reason/reference, mark review complete with holds retained, or reopen. Payment evidence and receipt-derived shortage/damage counts remain authoritative; incorrect/excess reports do not add available stock. Filters cover status, category, campaign and date. Packing and partial handover remain unimplemented.
+
+Cashfree verification requests are durable and processed by the configured native worker using existing authenticated reconciliation. Simulator mode never calls a gateway. No action refunds, applies held money, clears payment holds, changes available stock or rewrites history. See [INVESTIGATIONS](docs/INVESTIGATIONS.md), [RELEASE_READINESS](docs/RELEASE_READINESS.md) and the unexecuted [sandbox checklist](docs/CASHFREE_REHEARSAL.md).
+
+GitHub reported this repository as public on 27 October 2026; repository visibility was not changed. Keep credentials and rehearsal evidence out of source, public artifacts and logs.
 
 ## Setup
 
@@ -78,7 +86,7 @@ npm run test:e2e
 
 `npm test` runs domain/API/Cashfree fixtures and an old-schema migration fixture. Without DATABASE_URL, domain/API tests use in-memory PGlite. The migration fixture always uses a separate `.data/migration-test-*` database. Native tests require a disposable PostgreSQL database with `test` in its name plus REDIS_URL; they refuse PGlite. **Tests truncate their database**; never use business data. Test files run serially; race tests use two independent pools and observe deliberate overlapping row-lock waits.
 
-GitHub Actions provisions PostgreSQL 17 and Redis 7, seeds twice, runs fixtures/races/worker, checks types/build, and runs Chromium with a **separate** PGlite browser database. Browser tests own ports 3000/4000 and refuse existing servers; stop development services first. Screenshots are in `artifacts/` and uploaded as the private workflow's `browser-evidence` artifact. Fixtures and simulator runs are not actual Cashfree sandbox evidence.
+GitHub Actions provisions PostgreSQL 17 and Redis 7, seeds twice, runs fixtures/races/worker, checks types/build, and runs Chromium with a **separate** PGlite browser database. Browser tests own ports 3000/4000 and refuse existing servers; stop development services first. Screenshots are in `artifacts/` and uploaded as the workflow's `browser-evidence` artifact. Fixtures and simulator runs are not actual Cashfree sandbox evidence.
 
 See [STATUS](docs/STATUS.md), [AUDIT](docs/AUDIT.md), [DECISIONS](docs/DECISIONS.md) and [BACKLOG](docs/BACKLOG.md). No live payments, repository visibility change, merge or public deployment is part of this milestone.
 

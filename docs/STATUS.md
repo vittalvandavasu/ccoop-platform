@@ -1,5 +1,15 @@
 # Campaign management status — 26 October 2026
 
+## 27 October continuation: investigation-first scope
+
+Branch codex/operations-investigations continues PR #2 at d93bf62. Both earlier PRs remain unmerged. The previously pending push run 40372901157 completed successfully. GitHub reports the repository public; no visibility change was made.
+
+Implemented on this branch: consistent terminal checkout state; campus-scoped investigation queues; reasoned, idempotent assignment/notes/review-with-hold/reopen; stale evidence protection; durable authenticated reconciliation requests and lease recovery; authoritative fulfillment counts and receipt-derived missing/damaged cases; incorrect/excess reports that do not affect available stock. This is the approved investigation foundation, not complete money/stock resolution.
+
+Release checklist and missing access: RELEASE_READINESS.md. Actual Cashfree exercise remains NOT EXECUTED: CASHFREE_REHEARSAL.md. Rules, worker recovery and policy boundaries: INVESTIGATIONS.md. Final executed command/results and hosted evidence belong in the increment PR. Do not interpret queued verification, reviewed status, or synthetic test responses as actual sandbox transactions.
+
+Outstanding: credentialed/provider-reachable sandbox rehearsal, production identity/security/restore verification, refund/held-credit rules, physical disposition authority, packing and partial handover. The user approved retaining financial and stock holds until those rules are separately authorized.
+
 Prompt 2 is implemented on `codex/campaign-management`, based on PR #1's verified `4faf62e9765f7a0c47da53b845d45c04109ac7cb`. The feature PR targets `codex/cashfree-postgres-verification` while PR #1 remains unmerged. Neither PR is to be merged automatically.
 
 Implemented: persisted curator draft editor and schedules; campus authorization/private drafts; immutable published terms; genuine SKU/color demand; deterministic failed/qualifying closure; audited extensions; student quantity/SKU edits and cancellation; reviewed failed-color switches; resolution/payment expiry; order eligibility/price snapshots; transactional inbox and BullMQ deadline recovery. The chosen category rule and reconciliation policy are documented in CAMPAIGNS.md.
