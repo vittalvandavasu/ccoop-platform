@@ -43,10 +43,10 @@ export async function recordAttempt(db:Database,ob:any,p:any,source:string){
   const old=await q.q('SELECT * FROM payment_attempts WHERE provider=$1 AND payment_id=$2 FOR UPDATE',['cashfree',id]);
   D.ensure(!old.length||(old[0].obligation_id===ob.id&&old[0].amount===ob.amount),'Payment attempt ownership mismatch');
   await q.q('INSERT INTO payment_observations(id,provider,payment_id,obligation_id,status,amount,source) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING',[D.hash('cashfree:'+id+':'+status),'cashfree',id,ob.id,status,ob.amount,source]);
-  await q.q(`INSERT INTO payment_attempts(provider,payment_id,obligation_id,status,amount,currency,provider_time) VALUES('cashfree',$1,$2,$3,$4,'INR',$5)
-   ON CONFLICT(provider,payment_id) DO UPDATE SET status=CASE WHEN payment_attempts.status='SUCCESS' THEN 'SUCCESS' WHEN excluded.status='SUCCESS' THEN 'SUCCESS' WHEN payment_attempts.status IN ('FAILED','USER_DROPPED','CANCELLED','VOID') THEN payment_attempts.status ELSE excluded.status END,updated_at=now()`,[id,ob.id,status,ob.amount,p.payment_time||null]);
-  await q.q("UPDATE obligations SET checkout_state=CASE WHEN captured THEN 'SUCCESS' ELSE $2 END WHERE id=$1",[ob.id,status]);
-  return {verified:true,status};
+  const persisted=await D.one(q,`INSERT INTO payment_attempts(provider,payment_id,obligation_id,status,amount,currency,provider_time) VALUES('cashfree',$1,$2,$3,$4,'INR',$5)
+   ON CONFLICT(provider,payment_id) DO UPDATE SET status=CASE WHEN payment_attempts.status='SUCCESS' THEN 'SUCCESS' WHEN excluded.status='SUCCESS' THEN 'SUCCESS' WHEN payment_attempts.status IN ('FAILED','USER_DROPPED','CANCELLED','VOID') THEN payment_attempts.status ELSE excluded.status END,updated_at=now() RETURNING status`,[id,ob.id,status,ob.amount,p.payment_time||null]);
+  await q.q("UPDATE obligations SET checkout_state=CASE WHEN captured THEN 'SUCCESS' ELSE $2 END WHERE id=$1",[ob.id,persisted.status]);
+  return {verified:true,status:persisted.status};
  });
 }
 export async function reconcile(db:Database,id:string,adapter=cashfreeAdapter()){

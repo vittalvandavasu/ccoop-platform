@@ -49,6 +49,10 @@ it('keeps both successes as evidence and raises an overpayment hold without doub
  const {order,ob}=await checkout();await Promise.all([P.recordAttempt(db,ob,payment(ob,'paid-a'),'fixture'),P.recordAttempt(db,ob,payment(ob,'paid-b'),'fixture')]);
  const o=await D.one(db,'SELECT * FROM orders WHERE id=$1',[order.id]);expect(o.paid).toBe(ob.amount);expect(o.payment_hold).toBe(true);expect(await db.q('SELECT * FROM payment_events')).toHaveLength(2);expect((await D.one(db,'SELECT reason FROM payment_exceptions')).reason).toBe('OVERPAYMENT');await expect(D.approve(db,'admin','north-hoodie')).rejects.toThrow('Paid demand');
 });
+it('keeps obligation checkout state consistent with a terminal attempt after an out-of-order pending observation',async()=>{
+ const {ob}=await checkout();await P.recordAttempt(db,ob,payment(ob,'terminal-attempt','FAILED'),'fixture');await P.recordAttempt(db,ob,payment(ob,'terminal-attempt','PENDING'),'fixture');
+ expect((await D.one(db,'SELECT status FROM payment_attempts')).status).toBe('FAILED');expect((await D.one(db,'SELECT checkout_state FROM obligations')).checkout_state).toBe('FAILED');expect(await db.q('SELECT * FROM payment_observations')).toHaveLength(2);expect(await db.q('SELECT * FROM payment_events')).toHaveLength(0);
+});
 it('rejects wrong amount, currency, provider order, customer and cross-obligation transaction replay atomically',async()=>{
  const {ob}=await checkout();for(const patch of [{payment_amount:'1.00'},{payment_currency:'USD'},{order_id:'wrong-order'},{order_currency:'USD'},{order_amount:'1.00'}])await expect(P.recordAttempt(db,ob,{...payment(ob),...patch},'fixture')).rejects.toThrow();
  const body=webhook(ob,payment(ob));body.data.customer_details.customer_id='wrong';expect((await send(body)).statusCode).toBe(409);expect(await db.q('SELECT * FROM payment_events')).toHaveLength(0);
