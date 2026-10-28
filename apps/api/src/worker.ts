@@ -5,7 +5,8 @@ import {reconcilePending,cashfreeAdapter} from './payments.js';
 import {processReconciliations} from './investigations.js';
 import {paymentConfig} from './cashfree.js';
 import {recoverCampaigns} from './campaigns.js';
-export async function startWorker(db:Database,redisUrl:string,queueName='ccoop-outbox',interval=10000){
+export async function startWorker(db:Database,redisUrl:string,queueName=process.env.PARTNER_DEMO==='true'?'ccoop-partner-demo-outbox':'ccoop-outbox',interval=10000){
+ paymentConfig(); // Fail before starting a scheduler if demo/provider isolation is invalid.
  const redis=new IORedis(redisUrl,{maxRetriesPerRequest:null});
  const queue=new Queue(queueName,{connection:redis as any});
  const worker=new Worker(queueName,async()=>{
@@ -22,6 +23,7 @@ export async function startWorker(db:Database,redisUrl:string,queueName='ccoop-o
 }
 if(process.argv[1]?.endsWith('worker.ts')){
  if(!process.env.DATABASE_URL)throw Error('Worker requires native PostgreSQL DATABASE_URL');
+ if(process.env.PARTNER_DEMO==='true'&&!process.env.REDIS_URL)throw Error('Partner demo worker requires an explicit isolated Redis configuration');
  const db=await database();const runtime=await startWorker(db,process.env.REDIS_URL||'redis://localhost:6379');
  for(const signal of ['SIGINT','SIGTERM'])process.on(signal,async()=>{await runtime.close();await db.close();process.exit(0)});
 }

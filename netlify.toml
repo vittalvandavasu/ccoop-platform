@@ -1,0 +1,14 @@
+[build]
+  base = "."
+  command = "npm run build"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PARTNER_DEMO = "true"
+  DEMO_DATASET = "fictional"
+  PAYMENT_PROVIDER = "simulator"
+
+# Existing site's Package directory must be apps/web (set in Netlify UI).
+# Set APP_ORIGIN, API_ORIGIN and DEMO_ACCESS_* in protected runtime configuration.
+# Fastify/PostgreSQL/Redis/BullMQ are separate existing services, not this build.
