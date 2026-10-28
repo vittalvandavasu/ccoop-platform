@@ -1,5 +1,6 @@
 import {createHmac,timingSafeEqual} from 'node:crypto';
 import {ensure,Problem} from './domain.js';
+import {demoConfig} from '../../../packages/demo/config.js';
 export const CASHFREE_API_VERSION='2025-01-01'; // Explicit, documented web integration version.
 export const CASHFREE_BASE='https://sandbox.cashfree.com/pg';
 export function paise(value:unknown):number {
@@ -29,7 +30,8 @@ export function verifySignature(raw:string,timestamp:unknown,signature:unknown,s
 export function paymentConfig(env:Record<string,string|undefined>=process.env){
  const provider=env.PAYMENT_PROVIDER||env.PAYMENT_MODE||'cashfree';
  ensure(['cashfree','razorpay','simulator'].includes(provider),'Unknown payment provider',500);
- ensure(!(env.NODE_ENV==='production'&&provider==='simulator'),'Payment simulator is forbidden in production',500);
+ const demo=demoConfig(env);
+ ensure(!(env.NODE_ENV==='production'&&provider==='simulator'&&!demo),'Payment simulator is forbidden in production',500);
  ensure(!env.CASHFREE_ENV||env.CASHFREE_ENV==='sandbox','Only Cashfree sandbox is allowed',500);
  if(env.RAZORPAY_KEY_ID)ensure(env.RAZORPAY_KEY_ID.startsWith('rzp_test_'),'Only Razorpay test keys are supported',500);
  return provider;
