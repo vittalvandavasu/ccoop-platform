@@ -17,6 +17,16 @@ async function checkout(){const order=await eligible();const result=await P.cash
 function payment(ob:any,id='payment-1',status='SUCCESS'){return {cf_payment_id:id,order_id:ob.provider_order_id,payment_status:status,payment_amount:decimal(ob.amount),payment_currency:'INR',payment_time:new Date().toISOString()};}
 async function login(id='student'){const r=await app.inject({method:'POST',url:'/v1/auth/dev',headers:{origin},payload:{id}});return 'session='+r.cookies[0].value;}
 function webhook(ob:any,p:any){return {type:p.payment_status==='SUCCESS'?'PAYMENT_SUCCESS_WEBHOOK':p.payment_status==='FAILED'?'PAYMENT_FAILED_WEBHOOK':'PAYMENT_USER_DROPPED_WEBHOOK',data:{order:orders.get(ob.provider_order_id),payment:p,customer_details:{customer_id:ob.customer_ref}}};}
+it.each([true,false])('fences older reconciliation metadata while retaining receipts (older failure=%s)',async olderFails=>{
+ const {order,ob}=await checkout();await db.q('UPDATE orders SET payment_hold=true WHERE id=$1',[order.id]);
+ let entered!:()=>void,release!:()=>void;const started=new Promise<void>(r=>entered=r),gate=new Promise<void>(r=>release=r);
+ const good={...adapter,async payments(){return [payment(ob,'fenced-payment')];}};
+ const old={...good,async order(id:string){entered();await gate;if(olderFails)throw Error('old unavailable');return adapter.order(id);}};
+ const pending=P.reconcile(db,ob.id,old).then(()=>null,e=>e);await started;
+ try{if(olderFails)await P.reconcile(db,ob.id,good);else await expect(P.reconcile(db,ob.id,{...good,async order(){throw Error('new unavailable');}})).rejects.toThrow('new unavailable');}finally{release();}
+ const oldError=await pending;expect(Boolean(oldError)).toBe(olderFails);const latest=await D.one(db,'SELECT reconciliation_error,last_checked_at,captured FROM obligations WHERE id=$1',[ob.id]);
+ expect(latest.reconciliation_error).toBe(olderFails?null:'Verification unavailable; retry or request operations review');expect(Boolean(latest.last_checked_at)).toBe(olderFails);expect(latest.captured).toBe(true);expect(await db.q('SELECT amount,credited_amount FROM payment_events')).toEqual([{amount:ob.amount,credited_amount:0}]);expect(await db.q('SELECT paid,payment_hold FROM orders')).toEqual([{paid:0,payment_hold:true}]);
+});
 async function send(body:any,signature?:string,timestamp='1617695238078',rawOverride?:string){const raw=rawOverride||JSON.stringify(body);return app.inject({method:'POST',url:'/v1/payments/cashfree/webhook',headers:{'content-type':'application/json','x-webhook-timestamp':timestamp,'x-webhook-signature':signature??createHmac('sha256',secret).update(timestamp+raw).digest('base64')},payload:raw});}
 it('uses exact decimal lexemes and rejects excess precision, unsafe amounts and production configuration',()=>{
  expect(paise(providerJSON('{"payment_amount":1299.01}').payment_amount)).toBe(129901);expect(decimal(129901)).toBe('1299.01');expect(providerJSON('{"cf_payment_id":99999999999999999}').cf_payment_id).toBe('99999999999999999');
@@ -48,6 +58,10 @@ it('retains failed/dropped/pending attempts and success cannot be downgraded by 
 it('keeps both successes as evidence and raises an overpayment hold without double-crediting',async()=>{
  const {order,ob}=await checkout();await Promise.all([P.recordAttempt(db,ob,payment(ob,'paid-a'),'fixture'),P.recordAttempt(db,ob,payment(ob,'paid-b'),'fixture')]);
  const o=await D.one(db,'SELECT * FROM orders WHERE id=$1',[order.id]);expect(o.paid).toBe(ob.amount);expect(o.payment_hold).toBe(true);expect(await db.q('SELECT * FROM payment_events')).toHaveLength(2);expect((await D.one(db,'SELECT reason FROM payment_exceptions')).reason).toBe('OVERPAYMENT');await expect(D.approve(db,'admin','north-hoodie')).rejects.toThrow('Paid demand');
+});
+it('keeps obligation checkout state consistent with a terminal attempt after an out-of-order pending observation',async()=>{
+ const {ob}=await checkout();await P.recordAttempt(db,ob,payment(ob,'terminal-attempt','FAILED'),'fixture');await P.recordAttempt(db,ob,payment(ob,'terminal-attempt','PENDING'),'fixture');
+ expect((await D.one(db,'SELECT status FROM payment_attempts')).status).toBe('FAILED');expect((await D.one(db,'SELECT checkout_state FROM obligations')).checkout_state).toBe('FAILED');expect(await db.q('SELECT * FROM payment_observations')).toHaveLength(2);expect(await db.q('SELECT * FROM payment_events')).toHaveLength(0);
 });
 it('rejects wrong amount, currency, provider order, customer and cross-obligation transaction replay atomically',async()=>{
  const {ob}=await checkout();for(const patch of [{payment_amount:'1.00'},{payment_currency:'USD'},{order_id:'wrong-order'},{order_currency:'USD'},{order_amount:'1.00'}])await expect(P.recordAttempt(db,ob,{...payment(ob),...patch},'fixture')).rejects.toThrow();

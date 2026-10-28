@@ -1,5 +1,11 @@
 # Architecture decisions — Cashfree milestone, 26 October 2026
 
+Release assurance continuation: [POLICY_REGISTER.md](POLICY_REGISTER.md) records refund, held-credit and stock-disposition questions, alternatives, consequences, recommended safeguards and approving roles. Every entry is PROPOSED / NOT APPROVED. No policy approval is inferred from implementation or CI. [RELEASE_ASSURANCE.md](RELEASE_ASSURANCE.md) and [OPERATIONS_READINESS.md](OPERATIONS_READINESS.md) record the cumulative audit and external gates.
+
+## Investigation-first scope (27 October)
+
+The user authorized investigation, assignment, notes and verified reconciliation while retaining all financial/stock holds. Operational cases reference existing obligations or receipt/SKU lines and cannot replace the ledgers. REVIEWED_HELD means only that an operator reviewed evidence. Incorrect/excess physical observations never enter stock. Financial release, refunds, replacements, inventory corrections, packing and partial handover require separate business rules. Read queues use repeatable-read snapshots; payment review verifies an evidence fingerprint under the existing campaign/order/obligation lock order. Reconciliation jobs have persisted leases and reuse provider-idempotent verification outside locks. Details: INVESTIGATIONS.md.
+
 ## Prompt 2 campaign decisions
 
 The normative campaign policy is [CAMPAIGNS.md](CAMPAIGNS.md). Category MOQ counts eligible-color units at final resolution, colors aggregate across sizes, and reaching a threshold never closes pledging. When failed colors exist, all conversion waits for explicit decisions or expiry. This supersedes the earlier immediate-payment interpretation. Published commercial details are immutable; draft revisions and audited deadline extensions use request keys and optimistic revisions under campaign locks.

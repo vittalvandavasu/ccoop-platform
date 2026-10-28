@@ -13,14 +13,18 @@ import * as D from './domain.js';
 import {paymentConfig,providerJSON,verifySignature,type CashfreeAdapter} from './cashfree.js';
 import * as P from './payments.js';
 import * as C from './campaigns.js';
+import * as I from './investigations.js';
+import {demoConfig,demoAuthorized,demoDatabase} from '../../../packages/demo/config.js';
 const production=process.env.NODE_ENV==='production';
-const dev=process.env.DEV_AUTH==='true'&&!production;
 export async function buildServer(db:Database,options:{cashfree?:CashfreeAdapter}={}){
+ const production=process.env.NODE_ENV==='production',demo=demoConfig();demoDatabase();
+ const dev=(process.env.DEV_AUTH==='true'&&!production)||!!demo;
  const mode=paymentConfig();
  const key=process.env.RAZORPAY_KEY_ID;
  const gateway=key?.startsWith('rzp_test_')&&process.env.RAZORPAY_KEY_SECRET?new Razorpay({key_id:key,key_secret:process.env.RAZORPAY_KEY_SECRET}):null;
  const cashfree=options.cashfree||P.cashfreeAdapter();
- const app=Fastify({logger:production,bodyLimit:65536});await app.register(cookie);await app.register(helmet);await app.register(rateLimit,{max:100,timeWindow:'1 minute'});
+ const app=Fastify({logger:production?{redact:['req.headers.authorization','req.headers.cookie','res.headers["set-cookie"]']}:false,bodyLimit:65536});await app.register(cookie);await app.register(helmet);await app.register(rateLimit,{max:100,timeWindow:'1 minute'});
+ app.addHook('onRequest',async(req,reply)=>{if(demo&&!demoAuthorized(req.headers.authorization,demo))return reply.code(401).header('WWW-Authenticate','Basic realm="CCOOP partner demo", charset="UTF-8"').header('Cache-Control','no-store').send({error:'Partner demo access required'});});
  app.removeContentTypeParser('application/json');app.addContentTypeParser('application/json',{parseAs:'string'},(_req,body,done)=>{try{done(null,{raw:body,parsed:JSON.parse(body as string)})}catch(e){done(e as Error,undefined)}});
  app.addHook('preValidation',async req=>{if(req.body){(req as any).rawBody=(req.body as any).raw;req.body=(req.body as any).parsed;}});
  app.addHook('onRequest',async(req,reply)=>{reply.header('Cache-Control','no-store');if(['POST','PUT','PATCH','DELETE'].includes(req.method)&&!['/v1/payments/webhook','/v1/payments/cashfree/webhook'].includes(req.url)){
@@ -29,13 +33,15 @@ export async function buildServer(db:Database,options:{cashfree?:CashfreeAdapter
  app.setErrorHandler((error,_req,reply)=>{const e=error as any;reply.code(e instanceof z.ZodError?400:e.statusCode||500).send({error:e instanceof z.ZodError?'Invalid input':e.statusCode?e.message:'The request could not be completed'});if(!e.statusCode&&!(e instanceof z.ZodError))app.log.error(e);});
  async function user(req:any){const token=req.cookies.session;D.ensure(token,'Sign in to continue',401);const [u]=await db.q('SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()',[D.hash(token)]);D.ensure(u,'Sign in to continue',401);return u;}
  async function session(reply:any,u:any){const token=D.uid()+D.uid();await db.q("INSERT INTO sessions VALUES($1,$2,now()+interval '7 days')",[D.hash(token),u.id]);reply.setCookie('session',token,{httpOnly:true,secure:production,sameSite:'strict',path:'/',maxAge:604800});return {user:u};}
- app.get('/v1/health',async()=>{await db.q('SELECT 1');return {ok:true,database:process.env.DATABASE_URL?'postgresql':'pglite-development',paymentMode:mode,devAuth:dev};});
+ app.get('/v1/health',async()=>{await db.q('SELECT 1');return {ok:true,database:process.env.DATABASE_URL?'postgresql':'pglite-development',paymentMode:mode,devAuth:dev,partnerDemo:!!demo,commit:process.env.RELEASE_COMMIT||null};});
  app.get('/v1/campuses',async()=>db.q('SELECT * FROM campuses ORDER BY id'));
  app.get('/v1/catalog/:campus',async(req)=>{
  const campus=(req.params as any).campus;const drops=await db.q("SELECT d.*,COALESCE(SUM(p.quantity) FILTER(WHERE p.status NOT IN ('CANCELED','EXPIRED','FAILED','PAYMENT_EXPIRED')),0)::int pledged FROM drops d LEFT JOIN pledges p ON p.drop_id=d.id WHERE d.campus_id=$1 AND d.state NOT IN ('DRAFT','SCHEDULED') GROUP BY d.id ORDER BY d.price DESC",[campus]);
  for(const d of drops)d.variants=await db.q('SELECT * FROM variants WHERE drop_id=$1 ORDER BY color,size',[d.id]);return drops;
  });
  app.get('/v1/me',async(req)=>{const u=await user(req);return {...u,roles:await db.q('SELECT campus_id,role FROM roles WHERE user_id=$1',[u.id])}});
+ app.get('/v1/investigations/:campus/:kind',async req=>{const p=z.object({campus:z.string(),kind:z.enum(['payment','fulfillment'])}).parse(req.params);return I.queue(db,(await user(req)).id,p.campus,p.kind);});
+ app.post('/v1/investigations/actions',async req=>I.action(db,(await user(req)).id,req.body));
  app.get('/v1/campaigns/:campus',async req=>{const u=await user(req),campus=(req.params as any).campus;await D.role(db,u.id,campus,['curator']);const rows=await db.q("SELECT d.*,COALESCE(SUM(p.quantity) FILTER(WHERE p.status NOT IN ('CANCELED','FAILED','EXPIRED','PAYMENT_EXPIRED')),0)::int pledged FROM drops d LEFT JOIN pledges p ON p.drop_id=d.id WHERE d.campus_id=$1 GROUP BY d.id ORDER BY d.created_at DESC",[campus]);for(const d of rows){d.variants=await db.q('SELECT v.*,COALESCE(SUM(p.quantity) FILTER(WHERE p.status NOT IN (\'CANCELED\',\'FAILED\',\'EXPIRED\',\'PAYMENT_EXPIRED\')),0)::int pledged FROM variants v LEFT JOIN pledges p ON p.variant_id=v.id WHERE v.drop_id=$1 GROUP BY v.id ORDER BY v.color,v.size',[d.id]);}return rows;});
  app.post('/v1/campaigns/:campus/save',async req=>{const b=z.object({id:z.string().nullable(),catalog:C.catalogInput,command:C.commandInput}).parse(req.body);return C.saveDraft(db,(await user(req)).id,(req.params as any).campus,b.id,b.catalog,b.command);});
  app.post('/v1/campaigns/:id/publish',async req=>{const b=z.object({command:C.commandInput,scheduled:z.boolean()}).parse(req.body);return C.publish(db,(await user(req)).id,(req.params as any).id,b.command,b.scheduled);});
@@ -93,6 +99,7 @@ export async function buildServer(db:Database,options:{cashfree?:CashfreeAdapter
   return {attempts:await db.q('SELECT a.payment_id,a.provider,a.status,a.amount,a.updated_at FROM payment_attempts a JOIN obligations b ON b.id=a.obligation_id WHERE b.order_id=$1 ORDER BY a.updated_at',[o.id]),obligations:await db.q("SELECT id,provider,amount,captured,checkout_state,expires_at,reconciliation_error,CASE WHEN NOT captured AND expires_at<=now() THEN 'EXPIRED_OR_ABANDONED' ELSE checkout_state END display_state FROM obligations WHERE order_id=$1 ORDER BY created_at DESC",[o.id]),events:await db.q('SELECT e.provider,e.provider_payment_id,e.amount,e.credited_amount,e.created_at FROM payment_events e JOIN obligations b ON b.id=e.obligation_id WHERE b.order_id=$1 ORDER BY e.created_at',[o.id]),exceptions:await db.q('SELECT reason,amount,created_at FROM payment_exceptions WHERE order_id=$1',[o.id])};
  });
  app.post('/v1/orders/:id/reconcile',async req=>{
+  D.ensure(!demo,'Provider reconciliation is disabled in the partner demo',404);
   const u=await user(req),o=await D.one(db,'SELECT * FROM orders WHERE id=$1',[(req.params as any).id]);D.ensure(o.user_id===u.id,'Not your payment',403);
   const rows=await db.q("SELECT id FROM obligations WHERE order_id=$1 AND provider='cashfree' AND provider_order_id IS NOT NULL ORDER BY created_at",[o.id]);
   for(const row of rows)await P.reconcile(db,row.id,cashfree);
@@ -108,4 +115,4 @@ export async function buildServer(db:Database,options:{cashfree?:CashfreeAdapter
  app.post('/v1/pickups/dispatch',async req=>D.dispatch(db,(await user(req)).id,z.object({token:z.string().min(20)}).parse(req.body).token));
  return app;
 }
-if(process.argv[1]?.endsWith('server.ts')){const db=await database();if(!production)await seed(db);const app=await buildServer(db);await app.listen({host:'127.0.0.1',port:4000});for(const signal of ['SIGINT','SIGTERM'])process.on(signal,async()=>{await app.close();await db.close();process.exit(0)});}
+if(process.argv[1]?.endsWith('server.ts')){paymentConfig();demoDatabase();const db=await database();if(!production)await seed(db);const app=await buildServer(db);await app.listen({host:process.env.API_HOST||'127.0.0.1',port:Number(process.env.PORT||4000)});for(const signal of ['SIGINT','SIGTERM'])process.on(signal,async()=>{await app.close();await db.close();process.exit(0)});}

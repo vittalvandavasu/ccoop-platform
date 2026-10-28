@@ -1,5 +1,29 @@
 # Campaign management status — 26 October 2026
 
+## Release-gate closure increment — 28 October
+
+[RELEASE_GATES.md](RELEASE_GATES.md) is authoritative for gate IDs, status, evidence, proposed responsibilities, approval authority and closure criteria. No operational/business gate is declared closed. The current correction adds migration 006 and request-token fencing for concurrent reconciliation error/last-check metadata; authenticated older receipts still enter the existing idempotent ledger and preserve holds. Deterministic fixtures/native tests cover both completion orders; legacy upgrade checks preserve records. Current exact-head CI evidence belongs in PR #3. Raw webhook retention and CF-01–14 remain blocked on the documented external prerequisites and approvals.
+
+## Pilot evidence package — 28 October
+
+[RELEASE_READINESS.md](RELEASE_READINESS.md) is the consolidated evidence index and current NO-GO recommendation. PR heads/dependencies and both successful 89eaa58 runs were rechecked; this documentation-only continuation will record fresh exact-commit CI evidence in PR #3. Cashfree's execution ledger explicitly records 0/14 real scenarios executed and their remaining dependencies. The minimal webhook retention correction is proposed, not implemented pending access/retention/storage approval. RP-01 explicitly covers replacement policy alongside existing partial-fulfillment decisions. No implementation, migration, money, holds or stock behavior changed in this continuation.
+
+## Release assurance continuation — 27 October
+
+Cumulative source/integration audit: [RELEASE_ASSURANCE.md](RELEASE_ASSURANCE.md). Policy questions, alternatives and proposed approvers: [POLICY_REGISTER.md](POLICY_REGISTER.md). Operational classifications/owners and prepared incident/restore procedures: [OPERATIONS_READINESS.md](OPERATIONS_READINESS.md). The Cashfree checklist now has 14 individual execution/evidence/recovery scenarios, all NOT EXECUTED. No secrets, authorized callback environment or native local services were supplied.
+
+The queued-verification correction distinguishes an authenticated API check from a verified receipt: empty/pending/failed-only histories remain inconclusive with bounded retries, and verified receipts report received/applied paise and hold separately. Stale lease completions cannot overwrite/count a recovered result. Historical job outcomes must be read alongside financial evidence. Regression/native tests and final hosted outcomes are recorded in PR #3; no merge/deploy or financial/stock disposition is authorized.
+
+## 27 October continuation: investigation-first scope
+
+Branch codex/operations-investigations continues PR #2 at d93bf62. Both earlier PRs remain unmerged. The previously pending push run 40372901157 completed successfully. GitHub reports the repository public; no visibility change was made.
+
+Implemented on this branch: consistent terminal checkout state; campus-scoped investigation queues; reasoned, idempotent assignment/notes/review-with-hold/reopen; stale evidence protection; durable authenticated reconciliation requests and lease recovery; authoritative fulfillment counts and receipt-derived missing/damaged cases; incorrect/excess reports that do not affect available stock. This is the approved investigation foundation, not complete money/stock resolution.
+
+Release checklist and missing access: RELEASE_READINESS.md. Actual Cashfree exercise remains NOT EXECUTED: CASHFREE_REHEARSAL.md. Rules, worker recovery and policy boundaries: INVESTIGATIONS.md. Final executed command/results and hosted evidence belong in the increment PR. Do not interpret queued verification, reviewed status, or synthetic test responses as actual sandbox transactions.
+
+Outstanding: credentialed/provider-reachable sandbox rehearsal, production identity/security/restore verification, refund/held-credit rules, physical disposition authority, packing and partial handover. The user approved retaining financial and stock holds until those rules are separately authorized.
+
 Prompt 2 is implemented on `codex/campaign-management`, based on PR #1's verified `4faf62e9765f7a0c47da53b845d45c04109ac7cb`. The feature PR targets `codex/cashfree-postgres-verification` while PR #1 remains unmerged. Neither PR is to be merged automatically.
 
 Implemented: persisted curator draft editor and schedules; campus authorization/private drafts; immutable published terms; genuine SKU/color demand; deterministic failed/qualifying closure; audited extensions; student quantity/SKU edits and cancellation; reviewed failed-color switches; resolution/payment expiry; order eligibility/price snapshots; transactional inbox and BullMQ deadline recovery. The chosen category rule and reconciliation policy are documented in CAMPAIGNS.md.

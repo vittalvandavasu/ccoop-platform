@@ -5,6 +5,7 @@ import { sql, SQL } from 'drizzle-orm';
 import pg from 'pg';
 import { readFile, mkdir, readdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import {demoDatabase} from '../demo/config.js';
 export interface Query { q<T = any>(text:string, values?:unknown[]):Promise<T[]> }
 export interface Database extends Query { tx<T>(fn:(q:Query)=>Promise<T>):Promise<T>; close():Promise<void> }
 function statement(text:string, values:unknown[]=[]):SQL {
@@ -12,6 +13,7 @@ function statement(text:string, values:unknown[]=[]):SQL {
 }
 function wrap(orm:any):Query {return {async q<T>(text:string,values:unknown[]=[]){const r=await orm.execute(statement(text,values));return (r.rows??r) as T[];}}}
 export async function database(url=process.env.DATABASE_URL):Promise<Database>{
+ demoDatabase({...process.env,DATABASE_URL:url});
  if(!url && process.env.NODE_ENV==='production') throw Error('Production requires DATABASE_URL');
  if(!url && (process.env.PGLITE_PATH||'.data/postgres')!=='memory://')await mkdir(dirname(process.env.PGLITE_PATH||'.data/postgres'),{recursive:true});
  const native=url?new pg.Pool({connectionString:url}):new PGlite(process.env.PGLITE_PATH||'.data/postgres');
